@@ -100,6 +100,7 @@ states = {
     "Puerto Rico": "PR",
     "Virgin Islands": "VI"
 }
+bad_states = ["NY", "ID", "AZ", "HI", "NH", "ME", "RI"]
 
 # =[ Function definitions ]====================================================
 def clean_placenames(place_list: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -150,6 +151,103 @@ def clean_countynames(
                 corrections += 1
         if corrections == 0:
             return county_list
+    
+def clean_states(case_list: list[dict[str, str]]) -> list[dict[str, str]]:
+    state_names = list(states.keys())
+    for i, case in enumerate(case_list):
+        if case["State"] in state_names:
+            case["State"] = states[case["State"]]
+        case_list[i] = case
+    return case_list
+        
+def enrich_places(
+        base: dict[str, list[dict[str, str]]],
+        enrichment: dict[str, list[dict[str, str]]]
+    ) -> dict[str, list[dict[str, str]]]:
+    tot_fixes = 0
+    tot_items = 0
+    for state in base.keys():
+        st_fixes = 0
+        st_total = 0
+        for i, row in enumerate(base[state]):
+            st_total += 1
+            if state in islands.keys() and state != "PR":
+                row["INTPTLAT_City"] = islands[state]["INTPTLAT"]
+                row["INTPTLONG_City"] = islands[state]["INTPTLONG"]
+                st_fixes += 1
+                continue
+            no_match = True
+            city_norm = row['City'].lower()
+            for place in enrichment[state]:
+                place_norm = str(place['NAME']).lower()
+                if place_norm == city_norm or (place_norm in city_norm or city_norm in place_norm):
+                    row["INTPTLAT_City"] = place["INTPTLAT"]
+                    row["INTPTLONG_City"] = place["INTPTLONG"]
+                    no_match = False
+                    st_fixes += 1
+                    break
+            if no_match:
+                # if state in bad_states and city_norm:
+                #     print(f"No match found for {row['City']}")
+                row["INTPTLAT_City"] = ""
+                row["INTPTLONG_City"] = ""
+            base[state][i] = row
+        tot_fixes += st_fixes
+        tot_items += st_total
+        percent = round((st_fixes / st_total) * 100)
+        if percent >= 90:
+            color = "green"
+        elif percent >= 70:
+            color = "yellow"
+        else:
+            color = "red"
+        print(cu.format(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+    tot_per = round((tot_fixes / tot_items) * 100)
+    print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all Place data.")
+    return base
+
+def enrich_counties(
+        base: dict[str, list[dict[str, str]]],
+        enrichment: dict[str, list[dict[str, str]]]
+    ) -> dict[str, list[dict[str, str]]]:
+    tot_fixes = 0
+    tot_items = 0
+    for state in base.keys():
+        st_fixes = 0
+        st_total = 0
+        for i, row in enumerate(base[state]):
+            if state in islands.keys():
+                row["INTPTLAT_County"] = islands[state]["INTPTLAT"]
+                row["INTPTLONG_County"] = islands[state]["INTPTLONG"]
+                st_fixes += 1
+                st_total += 1
+                continue
+            no_match = True
+            for county in enrichment[state]:
+                if str(county["NAME"]).lower() == str(row["County"]).lower():
+                    row["INTPTLAT_County"] = county["INTPTLAT"]
+                    row["INTPTLONG_County"] = county["INTPTLONG"]
+                    no_match = False
+                    st_fixes += 1
+                    break
+            if no_match:
+                row["INTPTLAT_County"] = ""
+                row["INTPTLONG_County"] = ""
+            base[state][i] = row
+            st_total += 1
+        tot_fixes += st_fixes
+        tot_items += st_total
+        percent = round((st_fixes / st_total) * 100)
+        if percent >= 90:
+            color = "green"
+        elif percent >= 70:
+            color = "yellow"
+        else:
+            color = "red"
+        print(cu.format(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+    tot_per = round((tot_fixes / tot_items) * 100)
+    print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.")
+    return base
 
 # =[ Main Fuction ]============================================================
 def main():
@@ -183,13 +281,23 @@ def main():
             elif choice == "3":
                 file = cu.select_item_simple(list(frames.keys()), return_index=False)
                 key_list = list(frames[file].keys())
-                sub_choice = cu.select_item_simple(["Places", "Counties"])
+                sub_choice = cu.select_item_simple(["Places", "Counties", "Cases"])
                 if sub_choice == "0":
                     for key in key_list:
                         frames[file][key] = clean_placenames(frames[file][key])
                 elif sub_choice == "1":
                     for key in key_list:
                         frames[file][key] = clean_countynames(frames[file][key], key)
+                elif sub_choice == "2":
+                    for key in key_list:
+                        frames[file][key] = clean_states(frames[file][key])
+                    sorted_file = {}
+                    state_codes = (states.values())
+                    found_states = list(frames[file].keys())
+                    for value in state_codes:
+                        if value in found_states:
+                            sorted_file[value] = frames[file][value]
+                    frames[file] = sorted_file
             elif choice == "4":
                 print("Select the Places Geo file to enrich with:")
                 geo_file = cu.select_item_simple(list(frames.keys()), return_index=False)
@@ -197,41 +305,7 @@ def main():
                 print("Select the case file to be enriched:")
                 case_file = cu.select_item_simple(list(frames.keys()), return_index=False)
                 case_dict = frames[case_file]
-                tot_fixes = 0
-                tot_items = 0
-                for state in case_dict.keys():
-                    st_fixes = 0
-                    st_total = 0
-                    for i, row in enumerate(case_dict[state]):
-                        if state in islands.keys() and state != "PR":
-                            row["INTPTLAT_City"] = islands[state]["INTPTLAT"]
-                            row["INTPTLONG_City"] = islands[state]["INTPTLONG"]
-                            # print(f"Added ({row["INTPTLAT_City"]}, {row["INTPTLONG_City"]}) for Row {i}")
-                            st_fixes += 1
-                            st_total += 1
-                            continue
-                        no_match = True
-                        for place in geo_dict[state]:
-                            if str(place["NAME"]).lower() == str(row["City"]).lower():
-                                row["INTPTLAT_City"] = place["INTPTLAT"]
-                                row["INTPTLONG_City"] = place["INTPTLONG"]
-                                # print(f"Added ({row["INTPTLAT_City"]}, {row["INTPTLONG_City"]}) for {row["City"]}")
-                                no_match = False
-                                st_fixes += 1
-                                break
-                        if no_match:
-                            row["INTPTLAT_City"] = None
-                            row["INTPTLONG_City"] = None
-                            # print(f"No lat/lons added for {row["City"]}!")
-                        case_dict[state][i] = row
-                        st_total += 1
-                    tot_fixes += st_fixes
-                    tot_items += st_total
-                    percent = round((st_fixes / st_total) * 100)
-                    print(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.")
-                tot_per = round((tot_fixes / tot_items) * 100)
-                print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all Place data.")
-                frames[case_file] = case_dict
+                frames[case_file] = enrich_places(case_dict, geo_dict)
             elif choice == "5":
                 print("Select the Counties Geo file to enrich with:")
                 geo_file = cu.select_item_simple(list(frames.keys()), return_index=False)
@@ -239,39 +313,7 @@ def main():
                 print("Select the case file to be enriched:")
                 case_file = cu.select_item_simple(list(frames.keys()), return_index=False)
                 case_dict = frames[case_file]
-                tot_fixes = 0
-                tot_items = 0
-                for state in case_dict.keys():
-                    st_fixes = 0
-                    st_total = 0
-                    for i, row in enumerate(case_dict[state]):
-                        if state in islands.keys():
-                            row["INTPTLAT_County"] = islands[state]["INTPTLAT"]
-                            row["INTPTLONG_County"] = islands[state]["INTPTLONG"]
-                            st_fixes += 1
-                            st_total += 1
-                            continue
-                        no_match = True
-                        for county in geo_dict[state]:
-                            if str(county["NAME"]).lower() == str(row["County"]).lower():
-                                row["INTPTLAT_County"] = county["INTPTLAT"]
-                                row["INTPTLONG_County"] = county["INTPTLONG"]
-                                no_match = False
-                                st_fixes += 1
-                                break
-                        if no_match:
-                            row["INTPTLAT_County"] = None
-                            row["INTPTLONG_County"] = None
-                            # print(f"No lat/lons added for {row["County"]}!")
-                        case_dict[state][i] = row
-                        st_total += 1
-                    tot_fixes += st_fixes
-                    tot_items += st_total
-                    percent = round((st_fixes / st_total) * 100)
-                    print(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.")
-                tot_per = round((tot_fixes / tot_items) * 100)
-                print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.")
-                frames[case_file] = case_dict
+                frames[case_file] = enrich_counties(case_dict, geo_dict)
             elif choice == "7":
                 print("Files loaded:")
                 for key in frames.keys():
@@ -295,7 +337,7 @@ def main():
     
     except cu.UserQuitException:
         print(cu.format(f"\nSee you later!\n", 'blue'))
-        input(cu.format("Press ENTER to exit...", 'cyan'))
+        # input(cu.format("Press ENTER to exit...", 'cyan'))
         sys.exit()
     # except FileNotFoundError as e:
     #     print(cu.format(f"File Error: {e}", 'red'))
