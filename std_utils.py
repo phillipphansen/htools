@@ -73,11 +73,12 @@ states = {
 # =[ Function definitions ]====================================================
 
 def read_to_dict(
+        *,
         delim: str | None = None,
+        file_path: cu.Path = cu.Path('.'),
+        file_name: str = "*",
         prime: str | None = None
     ) -> tuple[dict[str, list[dict[str, str]]], str]:
-    file_path = cu.Path('.')
-    file_name = "*"
     # file_path = cu.Path(input("Enter a file path to search in: "))
     # file_name = input(f"Enter a file to search for in {file_path}: ")
     file = cu.select_file(file_name, file_path)
@@ -108,3 +109,19 @@ def read_to_dict(
             file_dict[prime_key].append(row)
     print(cu.format("Done!", "yellow"))
     return file_dict, file
+
+def write_from_dict(
+        out_dict: dict[str, list[dict[str, str]]]
+    ) -> None:
+    out_file_name = cu.Path(input("Give the new file a name: "))
+    print(cu.format(f"Writing {out_file_name}...", "yellow"), end="", flush=True)
+    first_rows = next(iter(out_dict.values()))
+    first_row = first_rows[0]
+    field_names = list(first_row.keys())
+    with out_file_name.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
+        for keys, values in out_dict.items():
+            for value in values:
+                writer.writerow(value)
+    print(cu.format("Done!", "yellow"))
