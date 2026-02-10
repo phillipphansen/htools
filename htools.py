@@ -14,13 +14,10 @@ main_menu = [
     {"name": "Simple-Combine Files"},   # 0
     {"name": "Read-in Case Files"},     # 1
     {"name": "Read-in Geo-files"},      # 2
-    {"name": "Normalize place names"},  # 3
-    {"name": "Enrich with place location data"},    # 4
-    {"name": "Enrich with county location data"},   # 5
-    {"name": "Combine enriched case files"},        # 6
-    {"name": "List loaded files"},      # 7
-    {"name": "List file header"},       # 8
-    {"name": "Write-out File"}          #9
+    {"name": "Enrich with location data"},    # 3
+    {"name": "List loaded files"},      # 5
+    {"name": "List file header"},       # 6
+    {"name": "Write-out File"}          # 7
 ]
 islands = {
     "GU": {"INTPTLAT": "13.3824", "INTPTLONG": "144.6973"},
@@ -29,15 +26,15 @@ islands = {
     "MP": {"INTPTLAT": "16.70", "INTPTLONG": "145.78"},
     "PR": {"INTPTLAT": "18.2208", "INTPTLONG": "-66.5901"}
 }
-place_names = ["CDP", "city", "town", "village", "borough", "zona",
+place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
-county_names = ["County", "Parish", "Municipio", "CDP", "city", "town", "village", "borough", "zona",
+county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
-ak_names = ["City", "and", "Borough", "Municipality", "Census", "Area"]
+ak_county_suffixes = ["City", "and", "Borough", "Municipality", "Census", "Area"]
 states = {
     "Alabama": "AL",
     "Alaska": "AK",
@@ -103,75 +100,91 @@ states = {
 bad_states = ["NY", "ID", "AZ", "HI", "NH", "ME", "RI"]
 
 # =[ Function definitions ]====================================================
-def clean_placenames(place_list: list[dict[str, str]]) -> list[dict[str, str]]:
-    while True:
-        corrections = 0
-        for i, place in enumerate(place_list):
-            corrected = False
-            key_list = list(place.keys())
-            if "NAME" not in key_list:
-                raise KeyError("NAME key not found!")
-            name_breakout = place["NAME"].split(' ')
-            for name in place_names:
-                if name == name_breakout[-1]:
-                    new_name = ' '.join(name_breakout[:-1])
-                    corrected = True
-                    break
-            if corrected:                
-                place["NAME"] = new_name
-                place_list[i] = place
-                corrections += 1
-        if corrections == 0:
-            return place_list
+def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
+    for state in place_list:
+        while True:
+            corrections = 0
+            for place in place_list[state]:
+                corrected = False
+                if "NAME" not in place:
+                    raise KeyError("NAME key not found!")
+                name_breakout = place['NAME'].split(' ')
+                # place_suffixes is a gloabl variable
+                for name in place_suffixes:
+                    if name == name_breakout[-1]:
+                        new_name = ' '.join(name_breakout[:-1])
+                        corrected = True
+                        break
+                if corrected:                
+                    place['NAME'] = new_name
+                    corrections += 1
+            if corrections == 0:
+                break
 
-def clean_countynames(
-        county_list: list[dict[str, str]],
-        state: str
-    ) -> list[dict[str, str]]:
-    if state == "AK":
-        match_names = ak_names
-    else:
-        match_names = county_names
-    while True:
-        corrections = 0
-        for i, place in enumerate(county_list):
-            corrected = False
-            key_list = list(place.keys())
-            if "NAME" not in key_list:
-                raise KeyError("NAME key not found!")
-            name_breakout = place["NAME"].split(' ')
-            for name in match_names:
-                if name == name_breakout[-1]:
-                    new_name = ' '.join(name_breakout[:-1])
-                    corrected = True
-                    break
-            if corrected:                
-                place["NAME"] = new_name
-                county_list[i] = place
-                corrections += 1
-        if corrections == 0:
-            return county_list
+def clean_countynames(county_file: dict[str, list[dict[str, str]]]) -> None:
+    for state in county_file:
+        if state == "AK":
+            # ak_county_suffixes is a global variable
+            match_names = ak_county_suffixes
+        else:
+            # county_suffixes is a global variable
+            match_names = county_suffixes
+        while True:
+            corrections = 0
+            for place in county_file[state]:
+                corrected = False
+                if "NAME" not in place:
+                    raise KeyError("NAME key not found!")
+                name_breakout = place["NAME"].split(' ')
+                for name in match_names:
+                    if name == name_breakout[-1]:
+                        new_name = ' '.join(name_breakout[:-1])
+                        corrected = True
+                        break
+                if corrected:                
+                    place["NAME"] = new_name
+                    corrections += 1
+            if corrections == 0:
+                break
     
-def clean_states(case_list: list[dict[str, str]]) -> list[dict[str, str]]:
-    state_names = list(states.keys())
-    for i, case in enumerate(case_list):
-        if case["State"] in state_names:
+def clean_states(case_list: list[dict[str, str]]) -> None:
+    """
+    Docstring for clean_states
+    
+    :param case_list: Description
+    :type case_list: list[dict[str, str]]
+    """
+    for case in case_list:
+        if case["State"] in states:
             case["State"] = states[case["State"]]
-        case_list[i] = case
-    return case_list
+
+def clean_case(
+        case_file: dict[str, list[dict[str, str]]]
+    ) -> dict[str, list[dict[str, str]]]:
+    first_key = next(iter(case_file))
+    if first_key in states:
+        norm_dict = {}
+        for key in case_file:
+            norm_dict[states[key]] = case_file[key]
+        case_file = norm_dict
+    sorted_dict = {}
+    for value in states.values():
+        if value in case_file:
+            sorted_dict[value] = case_file[value]
+    return sorted_dict
         
 def enrich_places(
-        base: dict[str, list[dict[str, str]]],
+        case_file: dict[str, list[dict[str, str]]],
         enrichment: dict[str, list[dict[str, str]]]
-    ) -> dict[str, list[dict[str, str]]]:
+    ) -> None:
     tot_fixes = 0
     tot_items = 0
-    for state in base.keys():
+    for state in case_file:
         st_fixes = 0
         st_total = 0
-        for i, row in enumerate(base[state]):
+        for row in case_file[state]:
             st_total += 1
-            if state in islands.keys() and state != "PR":
+            if state in islands and state != "PR":
                 row["INTPTLAT_City"] = islands[state]["INTPTLAT"]
                 row["INTPTLONG_City"] = islands[state]["INTPTLONG"]
                 st_fixes += 1
@@ -180,18 +193,16 @@ def enrich_places(
             city_norm = row['City'].lower()
             for place in enrichment[state]:
                 place_norm = str(place['NAME']).lower()
-                if place_norm == city_norm or (place_norm in city_norm or city_norm in place_norm):
+                if place_norm == city_norm or (
+                    place_norm in city_norm or city_norm in place_norm):
                     row["INTPTLAT_City"] = place["INTPTLAT"]
                     row["INTPTLONG_City"] = place["INTPTLONG"]
                     no_match = False
                     st_fixes += 1
                     break
             if no_match:
-                # if state in bad_states and city_norm:
-                #     print(f"No match found for {row['City']}")
                 row["INTPTLAT_City"] = ""
                 row["INTPTLONG_City"] = ""
-            base[state][i] = row
         tot_fixes += st_fixes
         tot_items += st_total
         percent = round((st_fixes / st_total) * 100)
@@ -201,22 +212,22 @@ def enrich_places(
             color = "yellow"
         else:
             color = "red"
-        print(cu.format(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+        print(cu.format(
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
     tot_per = round((tot_fixes / tot_items) * 100)
     print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all Place data.")
-    return base
 
 def enrich_counties(
-        base: dict[str, list[dict[str, str]]],
+        case_file: dict[str, list[dict[str, str]]],
         enrichment: dict[str, list[dict[str, str]]]
-    ) -> dict[str, list[dict[str, str]]]:
+    ) -> None:
     tot_fixes = 0
     tot_items = 0
-    for state in base.keys():
+    for state in case_file:
         st_fixes = 0
         st_total = 0
-        for i, row in enumerate(base[state]):
-            if state in islands.keys():
+        for row in case_file[state]:
+            if state in islands:
                 row["INTPTLAT_County"] = islands[state]["INTPTLAT"]
                 row["INTPTLONG_County"] = islands[state]["INTPTLONG"]
                 st_fixes += 1
@@ -233,7 +244,6 @@ def enrich_counties(
             if no_match:
                 row["INTPTLAT_County"] = ""
                 row["INTPTLONG_County"] = ""
-            base[state][i] = row
             st_total += 1
         tot_fixes += st_fixes
         tot_items += st_total
@@ -244,94 +254,77 @@ def enrich_counties(
             color = "yellow"
         else:
             color = "red"
-        print(cu.format(f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+        print(cu.format(
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
     tot_per = round((tot_fixes / tot_items) * 100)
     print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.")
-    return base
 
 # =[ Main Fuction ]============================================================
 def main():
     print(cu.format("\nFile Combiner. Good luck.\n", 'cyan'))
     # Try/except block for all user inputs
-    frames = {}
+    case_files = {}
+    place_dict = None
+    county_dict = None
     try:
         while True:
             choice = cu.select_item(main_menu, return_key="_index_")
             if choice == "0":
-                if not frames:
+                if not case_files:
                     pu.combine_simple()
                 else:
-                    print(frames)
+                    print(case_files)
+            # Read-in case files
             elif choice == "1":
-                file_dict, file_name = su.read_to_dict(delim=',', file_name='*.csv')
-                key_list = list(file_dict.keys())
-                if key_list[0] in list(states.keys()):
-                    new_dict = {}
-                    for key in key_list:
-                        new_key = states[key]
-                        new_dict[new_key] = file_dict[key]
-                    file_dict = new_dict
-                    key_list = list(file_dict.keys())
-                frames[file_name] = file_dict
+                file_dict, file_name = su.read_to_dict(
+                    delim=',', file_name='*.csv', prime='State')
+                case_files[file_name] = clean_case(file_dict)
             # Read-in Geo Files
             elif choice == "2":
-                file_dict, file_name = su.read_to_dict(delim='|', file_name='*.txt')
-                key_list = list(file_dict.keys())
-                frames[file_name] = file_dict
-            elif choice == "3":
-                file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                key_list = list(frames[file].keys())
-                sub_choice = cu.select_item_simple(["Places", "Counties", "Cases"])
+                print("What type of geo file will you be reading in?")
+                sub_choice = cu.select_item_simple(["Places", "Counties"])
+                file_dict, file_name = su.read_to_dict(
+                    delim='|', file_name='*.txt', prime='USPS')
                 if sub_choice == "0":
-                    for key in key_list:
-                        frames[file][key] = clean_placenames(frames[file][key])
+                    clean_placenames(file_dict)
+                    place_dict = file_dict
+                    place_file_name = file_name
                 elif sub_choice == "1":
-                    for key in key_list:
-                        frames[file][key] = clean_countynames(frames[file][key], key)
-                elif sub_choice == "2":
-                    for key in key_list:
-                        frames[file][key] = clean_states(frames[file][key])
-                    sorted_file = {}
-                    state_codes = (states.values())
-                    found_states = list(frames[file].keys())
-                    for value in state_codes:
-                        if value in found_states:
-                            sorted_file[value] = frames[file][value]
-                    frames[file] = sorted_file
+                    clean_countynames(file_dict)
+                    county_dict = file_dict
+                    county_file_name = file_name
+            elif choice == "3":
+                if not place_dict or not county_dict:
+                    print(cu.format(
+                        "No geo files loaded! Load a places file first!",
+                        "red"
+                    ))
+                    continue
+                print("Select the case file to be enriched:")
+                case_file = cu.select_item_simple(case_files, return_index=False)
+                enrich_places(case_files[case_file], place_dict)
+                input("Places enriched, press ENTER to enrich counties...")
+                enrich_counties(case_files[case_file], county_dict)                
             elif choice == "4":
-                print("Select the Places Geo file to enrich with:")
-                geo_file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                geo_dict = frames[geo_file]
-                print("Select the case file to be enriched:")
-                case_file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                case_dict = frames[case_file]
-                frames[case_file] = enrich_places(case_dict, geo_dict)
+                print("Loaded files list:")
+                if place_dict:
+                    print(f"{place_file_name} loaded as places dictionary")
+                if county_dict:
+                    print(f"{county_file_name} loaded as counties dictionary")
+                if case_files:
+                    print("Case files loaded:")
+                    for case in case_files:
+                        print(case)
             elif choice == "5":
-                print("Select the Counties Geo file to enrich with:")
-                geo_file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                geo_dict = frames[geo_file]
-                print("Select the case file to be enriched:")
-                case_file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                case_dict = frames[case_file]
-                frames[case_file] = enrich_counties(case_dict, geo_dict)
-            elif choice == "7":
-                print("Files loaded:")
-                for key in frames.keys():
-                    print(key)
-            elif choice == "8":
-                # frames[file][state] = List[dict[str, str]]
-                file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                first_state = list(frames[file].keys())[0]
-                first_row = frames[file][first_state][0]
+                file = cu.select_item_simple(case_files, return_index=False)
+                first_state = next(iter(case_files[file]))
+                first_row = case_files[file][first_state][0]
                 for key, value in first_row.items():
                     print(key, value)
-            elif choice == "9":
-                # TODO: write a csv writer script :(
+            elif choice == "6":
                 print("Select the case file to be written:")
-                file = cu.select_item_simple(list(frames.keys()), return_index=False)
-                file_dict = frames[file]
-                su.write_from_dict(file_dict)
-
+                file = cu.select_item_simple(case_files, return_index=False)
+                su.write_csv(case_files[file])
             else:
                 print("I don't know that command yet.\n")
     

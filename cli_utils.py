@@ -3,6 +3,7 @@ Contains functions for formatting the Command Line Interface output.
 """
 
 # =[ Imports ]=================================================================
+from collections.abc import Iterable
 from datetime import datetime as dt
 import math
 from pathlib import Path
@@ -424,7 +425,7 @@ def select_item(
     # Selection loop
     return get_choice(selections, return_key)
 
-def select_item_simple(selections: list, return_index: bool = True) -> str:
+def select_item_simple(selections: Iterable[Any], return_index: bool = True) -> str:
     """
     Docstring for select_item_simple
     
@@ -432,6 +433,7 @@ def select_item_simple(selections: list, return_index: bool = True) -> str:
     :param return_index: Description
     :return: Description
     """
+    selections = list(selections)
     terminal_width = shutil.get_terminal_size().columns
     index_width = len(str(len(selections)))
     width = terminal_width - index_width - 2
@@ -442,7 +444,7 @@ def select_item_simple(selections: list, return_index: bool = True) -> str:
         print(f"{i:<{index_width}}", end=" ")
         # Enumerated to index max_field_len_list.
         print(
-            f"{truncate(selections[i-1], width):<{width}}",
+            f"{truncate(item, width):<{width}}",
             end=" "
         )
         # Add a line after the selection list for readability.
