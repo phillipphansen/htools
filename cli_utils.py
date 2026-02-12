@@ -8,6 +8,7 @@ from datetime import datetime as dt
 import math
 from pathlib import Path
 import shutil
+import sys
 from typing import Any
 
 # =[ Global Variables ]========================================================
@@ -123,6 +124,13 @@ def format(
     color = f"{colors.get(color, "")}"
     # Put it all together with the reset at the end.
     return f"{style}{color}{text}{reset}"
+
+def grade_color(value: int) -> str:
+    if value >= 90:
+        return "green"
+    elif value  >= 70:
+        return "yellow"
+    return "red"
 
 def ask_yesno(question: str="Is this correct?") -> bool:
     """
@@ -562,23 +570,27 @@ def select_file(
     # functions.
     file_list = get_file_list(file_type, file_path)
     # Do a little extra to check for file name mistype.
-    if file_list is None:
-        # Error text to display
-        etext = f"No {file_type} found in {file_path}!"
-        # If the file type was anything, it ain't here.
-        if file_type == '*':
-            print(format(etext, 'red'))
-            if ask_yesno("Check subfolders for files?"):
-                return select_file(file_path=file_path, recurs=True, **kwargs)
-            else:
-                raise FileNotFoundError(etext)
-        # Otherwise give a second try with anything for the file type.
-        else:
-            print(format(etext, 'red'))
-            if ask_yesno("Check for *any* files?"):
-                return select_file(file_path=file_path, **kwargs)
-            else:
-                raise FileNotFoundError(etext)
-    selection_header = build_header(file_list, selection_header)
-    return select_item(file_list, selection_header, **kwargs)
+    if file_list is not None:
+        selection_header = build_header(file_list, selection_header)
+        return select_item(file_list, selection_header, **kwargs)
+    # Error text to display
+    etext = f"No {file_type} found in {file_path}!"
+    # If the file type was anything, it ain't here.
+    if file_type == '*':
+        print(format(etext, 'red'))
+        if not ask_yesno("Check subfolders for files?"):
+            raise FileNotFoundError(etext)
+        return select_file(file_path=file_path, recurs=True, **kwargs)
+    # Otherwise give a second try with anything for the file type.
+    else:
+        print(format(etext, 'red'))
+        if not ask_yesno("Check for *any* files?"):
+            raise FileNotFoundError(etext)
+        return select_file(file_path=file_path, **kwargs)  
+    
 
+def quit(keyed: bool = False) -> None:
+    print(format(f"\nSee you later!\n", 'blue'))
+    if keyed:
+        input(format("Press ENTER to exit...", 'cyan'))
+    sys.exit()

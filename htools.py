@@ -5,20 +5,22 @@ panda, geopandas, numpy, etc. CLI based.
 
 # =[ Imports ]=================================================================
 import cli_utils as cu
-import pandas_utils as pu
 import std_utils as su
-import sys
 
 # =[ Global variables ]========================================================
 main_menu = [
-    {"name": "Simple-Combine Files"},   # 0
-    {"name": "Read-in Case Files"},     # 1
-    {"name": "Read-in Geo-files"},      # 2
-    {"name": "Enrich with location data"},    # 3
-    {"name": "List loaded files"},      # 5
-    {"name": "List file header"},       # 6
-    {"name": "Write-out File"}          # 7
+    {"name": "Read-in Case Files"},         # 0
+    {"name": "Read-in Geo-files"},          # 1
+    {"name": "Enrich with location data"},  # 2
+    {"name": "List loaded files"},          # 3
+    {"name": "List file header"},           # 4
+    {"name": "Write-out File"}              # 5
 ]
+place_filename = "2025_Gaz_place_national.txt"
+county_filename = "2025_Gaz_counties_national.txt"
+geo_column = "USPS"
+case_filenames = ["namus_missing_v2.csv", "namus_unid.csv", "namus_unclaim.csv"]
+case_column = "State"
 islands = {
     "GU": {"INTPTLAT": "13.3824", "INTPTLONG": "144.6973"},
     "VI": {"INTPTLAT": "18.3358", "INTPTLONG": "-64.8963"},
@@ -97,7 +99,6 @@ states = {
     "Puerto Rico": "PR",
     "Virgin Islands": "VI"
 }
-bad_states = ["NY", "ID", "AZ", "HI", "NH", "ME", "RI"]
 
 # =[ Function definitions ]====================================================
 def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
@@ -158,7 +159,7 @@ def clean_states(case_list: list[dict[str, str]]) -> None:
         if case["State"] in states:
             case["State"] = states[case["State"]]
 
-def clean_case(
+def sort_case(
         case_file: dict[str, list[dict[str, str]]]
     ) -> dict[str, list[dict[str, str]]]:
     first_key = next(iter(case_file))
@@ -206,16 +207,17 @@ def enrich_places(
         tot_fixes += st_fixes
         tot_items += st_total
         percent = round((st_fixes / st_total) * 100)
-        if percent >= 90:
-            color = "green"
-        elif percent >= 70:
-            color = "yellow"
-        else:
-            color = "red"
+        color = cu.grade_color(percent)
         print(cu.format(
-            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.",
+            color
+        ))
     tot_per = round((tot_fixes / tot_items) * 100)
-    print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all Place data.")
+    color = cu.grade_color(tot_per)
+    print(cu.format(
+        f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all Place data.",
+        color
+    ))
 
 def enrich_counties(
         case_file: dict[str, list[dict[str, str]]],
@@ -248,90 +250,135 @@ def enrich_counties(
         tot_fixes += st_fixes
         tot_items += st_total
         percent = round((st_fixes / st_total) * 100)
-        if percent >= 90:
-            color = "green"
-        elif percent >= 70:
-            color = "yellow"
-        else:
-            color = "red"
+        color = cu.grade_color(percent)
         print(cu.format(
-            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color))
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color
+        ))
     tot_per = round((tot_fixes / tot_items) * 100)
-    print(f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.")
+    color = cu.grade_color(tot_per)
+    print(cu.format(
+        f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.",
+        color
+    ))
+
+def read_file_auto(
+        file_name: str,
+        *,
+        delim: str = ',',
+        key_col: str | None = None
+        ) -> dict[str, list[dict[str, str]]]:
+    try:
+        return su.read_to_grouped_dict(file_name, delim, key_col)
+    except ValueError as e:
+        print(cu.format(e, "red"))
+        key_col = input("Enter the key column name: ")
+        return su.read_to_grouped_dict(file_name, delim, key_col)
+
+def manual_mode() -> None:
+    case_files = {}
+    place_dict = None
+    county_dict = None
+    while True:
+        choice = cu.select_item(main_menu, return_key="_index_")
+        if choice == "0":
+            file_name = cu.select_file(file_type='*.csv')
+            file_dict = su.read_to_grouped_dict(file_name, key_col='State')
+            case_files[file_name] = sort_case(file_dict)
+        # Read-in Geo Files
+        elif choice == "1":
+            print("What type of geo file will you be reading in?")
+            sub_choice = cu.select_item_simple(["Places", "Counties"])
+            file_name = cu.select_file(file_type='*.txt')
+            file_dict = su.read_to_grouped_dict(
+                file_name, key_col='USPS', delim='|'
+            )
+            # Places File
+            if sub_choice == "0":
+                clean_placenames(file_dict)
+                place_dict = file_dict
+                place_file_name = file_name
+            # Counties File
+            elif sub_choice == "1":
+                clean_countynames(file_dict)
+                county_dict = file_dict
+                county_file_name = file_name
+        elif choice == "2":
+            if not place_dict or not county_dict:
+                print(cu.format(
+                    "No geo files loaded! Load a places file first!",
+                    "red"
+                ))
+                continue
+            print("Select the case file to be enriched:")
+            case_file = cu.select_item_simple(case_files, return_index=False)
+            enrich_places(case_files[case_file], place_dict)
+            input("Places enriched, press ENTER to enrich counties...")
+            enrich_counties(case_files[case_file], county_dict)                
+        elif choice == "3":
+            print("Loaded files list:")
+            if place_dict:
+                print(f"{place_file_name} loaded as places dictionary")
+            if county_dict:
+                print(f"{county_file_name} loaded as counties dictionary")
+            if case_files:
+                print("Case files loaded:")
+                for case in case_files:
+                    print(case)
+        elif choice == "4":
+            file = cu.select_item_simple(case_files, return_index=False)
+            first_state = next(iter(case_files[file]))
+            first_row = case_files[file][first_state][0]
+            for key, value in first_row.items():
+                print(key, value)
+        elif choice == "5":
+            print("Select the case file to be written:")
+            file = cu.select_item_simple(case_files, return_index=False)
+            save_name = input("Enter a name to save the file with: ")
+            su.write_csv(case_files[file], save_name)
+        else:
+            print("I don't know that command yet.\n")
+
+def auto_mode() -> None:
+    case_files = {}
+    print(cu.format(f"Reading {place_filename}...", 'cyan'), end="", flush=True)
+    place_file = read_file_auto(place_filename, delim='|', key_col=geo_column)
+    print(cu.format("Done!", 'cyan'))
+    print(cu.format(f"Normalizing {place_filename}...", 'cyan'), end="", flush=True)
+    clean_placenames(place_file)
+    print(cu.format("Done!", 'cyan'))
+    print(cu.format(f"Reading {county_filename}...", 'cyan'), end="", flush=True)
+    county_file = read_file_auto(county_filename, delim='|', key_col=geo_column)
+    print(cu.format("Done!", 'cyan'))
+    print(cu.format(f"Normalizing {place_filename}...", 'cyan'), end="", flush=True)
+    clean_countynames(county_file)
+    print(cu.format("Done!", 'cyan'))
+    current_time = cu.dt.today().strftime("%Y%m%d%H%M")
+    for file_name in case_filenames:
+        print(cu.format(f"Reading {file_name}...", 'cyan'), end="", flush=True)
+        case_file = read_file_auto(file_name, key_col=case_column)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Sorting {file_name}...", 'cyan'), end="", flush=True)
+        case_file = sort_case(case_file)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Enriching {file_name}...", 'cyan'), flush=True)
+        enrich_places(case_file, place_file)
+        enrich_counties(case_file, county_file)
+        print(cu.format("Done!", 'cyan'))
+        name_norm = file_name.split('.')[0]
+        save_name = f"{name_norm}_{current_time}.csv"
+        print(cu.format(f"Saving {save_name}...", 'cyan'), end="", flush=True)
+        su.write_csv(case_file, save_name)
+        print(cu.format("Done!", 'cyan'))
+
 
 # =[ Main Fuction ]============================================================
 def main():
     print(cu.format("\nFile Combiner. Good luck.\n", 'cyan'))
     # Try/except block for all user inputs
-    case_files = {}
-    place_dict = None
-    county_dict = None
     try:
-        while True:
-            choice = cu.select_item(main_menu, return_key="_index_")
-            if choice == "0":
-                if not case_files:
-                    pu.combine_simple()
-                else:
-                    print(case_files)
-            # Read-in case files
-            elif choice == "1":
-                file_dict, file_name = su.read_to_dict(
-                    delim=',', file_name='*.csv', prime='State')
-                case_files[file_name] = clean_case(file_dict)
-            # Read-in Geo Files
-            elif choice == "2":
-                print("What type of geo file will you be reading in?")
-                sub_choice = cu.select_item_simple(["Places", "Counties"])
-                file_dict, file_name = su.read_to_dict(
-                    delim='|', file_name='*.txt', prime='USPS')
-                if sub_choice == "0":
-                    clean_placenames(file_dict)
-                    place_dict = file_dict
-                    place_file_name = file_name
-                elif sub_choice == "1":
-                    clean_countynames(file_dict)
-                    county_dict = file_dict
-                    county_file_name = file_name
-            elif choice == "3":
-                if not place_dict or not county_dict:
-                    print(cu.format(
-                        "No geo files loaded! Load a places file first!",
-                        "red"
-                    ))
-                    continue
-                print("Select the case file to be enriched:")
-                case_file = cu.select_item_simple(case_files, return_index=False)
-                enrich_places(case_files[case_file], place_dict)
-                input("Places enriched, press ENTER to enrich counties...")
-                enrich_counties(case_files[case_file], county_dict)                
-            elif choice == "4":
-                print("Loaded files list:")
-                if place_dict:
-                    print(f"{place_file_name} loaded as places dictionary")
-                if county_dict:
-                    print(f"{county_file_name} loaded as counties dictionary")
-                if case_files:
-                    print("Case files loaded:")
-                    for case in case_files:
-                        print(case)
-            elif choice == "5":
-                file = cu.select_item_simple(case_files, return_index=False)
-                first_state = next(iter(case_files[file]))
-                first_row = case_files[file][first_state][0]
-                for key, value in first_row.items():
-                    print(key, value)
-            elif choice == "6":
-                print("Select the case file to be written:")
-                file = cu.select_item_simple(case_files, return_index=False)
-                su.write_csv(case_files[file])
-            else:
-                print("I don't know that command yet.\n")
-    
+        auto_mode()
     except cu.UserQuitException:
-        print(cu.format(f"\nSee you later!\n", 'blue'))
-        # input(cu.format("Press ENTER to exit...", 'cyan'))
-        sys.exit()
+        cu.quit()
     # except FileNotFoundError as e:
     #     print(cu.format(f"File Error: {e}", 'red'))
     #     input(cu.format("Press ENTER to exit...", 'cyan'))
