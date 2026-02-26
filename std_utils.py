@@ -79,7 +79,7 @@ def write_csv(out_dict: dict[str, list[dict[str, str]]], out_name: str) -> None:
             for value in values:
                 writer.writerow(value)
 
-def write_json(out_dict: dict[str, list[dict[str, str]]]) -> None:
+def write_json(out_dict: dict[str, list[dict[str, str]]], out_name: str) -> None:
     """
     Docstring for write_json
     

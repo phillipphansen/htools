@@ -12,9 +12,10 @@ main_menu = [
     {"name": "Read-in Case Files"},         # 0
     {"name": "Read-in Geo-files"},          # 1
     {"name": "Enrich with location data"},  # 2
-    {"name": "List loaded files"},          # 3
-    {"name": "List file header"},           # 4
-    {"name": "Write-out File"}              # 5
+    {"name": "Combine dataframes"},         # 3
+    {"name": "List loaded files"},          # 4
+    {"name": "List file header"},           # 5
+    {"name": "Write-out File"}              # 6
 ]
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
@@ -32,10 +33,10 @@ place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
-county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town", "village", "borough", "zona",
-                "urbana", "(balance)", "and", "government", "unified",
-                "county", "consolidated", "urban", "metro", "comunidad",
-                "municipality",]
+county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town",
+                "village", "borough", "zona", "urbana", "(balance)", "and",
+                "government", "unified", "county", "consolidated", "urban",
+                "metro", "comunidad", "municipality",]
 ak_county_suffixes = ["City", "and", "Borough", "Municipality", "Census", "Area"]
 states = {
     "Alabama": "AL",
@@ -99,6 +100,21 @@ states = {
     "Puerto Rico": "PR",
     "Virgin Islands": "VI"
 }
+
+# =[ Class definitions ]=======================================================
+class CaseRecord:
+    case_number: str
+    state: str
+    date_last_contact: str
+    last_name: str
+    first_name: str
+    missing_age: int
+    
+    pass
+
+
+# =[ Type definitions ]========================================================
+type CaseDict = dict[str, list[CaseRecord]]
 
 # =[ Function definitions ]====================================================
 def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
@@ -274,6 +290,10 @@ def read_file_auto(
         key_col = input("Enter the key column name: ")
         return su.read_to_grouped_dict(file_name, delim, key_col)
 
+def combine_case_files(case_file_1: dict[str, list[dict[str, str]]]) -> None:
+
+    pass
+
 def manual_mode() -> None:
     case_files = {}
     place_dict = None
@@ -313,8 +333,11 @@ def manual_mode() -> None:
             case_file = cu.select_item_simple(case_files, return_index=False)
             enrich_places(case_files[case_file], place_dict)
             input("Places enriched, press ENTER to enrich counties...")
-            enrich_counties(case_files[case_file], county_dict)                
+            enrich_counties(case_files[case_file], county_dict)
         elif choice == "3":
+            # TODO: dictionary combination function
+            pass
+        elif choice == "4":
             print("Loaded files list:")
             if place_dict:
                 print(f"{place_file_name} loaded as places dictionary")
@@ -324,13 +347,13 @@ def manual_mode() -> None:
                 print("Case files loaded:")
                 for case in case_files:
                     print(case)
-        elif choice == "4":
+        elif choice == "5":
             file = cu.select_item_simple(case_files, return_index=False)
             first_state = next(iter(case_files[file]))
             first_row = case_files[file][first_state][0]
             for key, value in first_row.items():
                 print(key, value)
-        elif choice == "5":
+        elif choice == "6":
             print("Select the case file to be written:")
             file = cu.select_item_simple(case_files, return_index=False)
             save_name = input("Enter a name to save the file with: ")
