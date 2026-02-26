@@ -7,6 +7,7 @@ built-in modules. CLI based.
 import cli_utils as cu
 from collections.abc import Iterable
 import csv
+import json
 from pathlib import Path
 
 # =[ Global variables ]========================================================
@@ -86,5 +87,9 @@ def write_json(out_dict: dict[str, list[dict[str, str]]], out_name: str) -> None
     :param out_dict: Description
     :type out_dict: dict[str, list[dict[str, str]]]
     """
+    out_file_name = Path(out_name)
+    flat_cases = [case for cases in out_dict.values() for case in cases]
+    with out_file_name.open("w", encoding="utf-8") as f:
+        json.dump(flat_cases, f, indent=2, ensure_ascii=False)
     # TODO: Write .json writer
     pass

@@ -12,10 +12,10 @@ main_menu = [
     {"name": "Read-in Case Files"},         # 0
     {"name": "Read-in Geo-files"},          # 1
     {"name": "Enrich with location data"},  # 2
-    {"name": "Combine dataframes"},         # 3
+    {"name": "Write-out JSON file"},         # 3
     {"name": "List loaded files"},          # 4
     {"name": "List file header"},           # 5
-    {"name": "Write-out File"}              # 6
+    {"name": "Write-out CSV file"}              # 6
 ]
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
@@ -335,8 +335,9 @@ def manual_mode() -> None:
             input("Places enriched, press ENTER to enrich counties...")
             enrich_counties(case_files[case_file], county_dict)
         elif choice == "3":
-            # TODO: dictionary combination function
-            pass
+            file = cu.select_item_simple(case_files, return_index=False)
+            save_name = input(f"\nEnter a name to save {file} as: ")
+            su.write_json(case_files[file], save_name)
         elif choice == "4":
             print("Loaded files list:")
             if place_dict:
@@ -399,7 +400,8 @@ def main():
     print(cu.format("\nFile Combiner. Good luck.\n", 'cyan'))
     # Try/except block for all user inputs
     try:
-        auto_mode()
+        # auto_mode()
+        manual_mode()
     except cu.UserQuitException:
         cu.quit()
     # except FileNotFoundError as e:
