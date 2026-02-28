@@ -18,23 +18,47 @@ def _iter_csv_reader(
         delim: str = ',',
         key_col: str | None = None
     ) -> Iterable[dict[str, str]]:
+    """
+    This is an iterator function to allow the two different read-in functions
+    to efficiently readin a csv file.
+
+    :param file_name: The name of the file to read
+    :type file_name: str
+    :param delim: The delimiter to read in the file with. Default comma (,).
+    :type delim: str, optional
+    :param key_col: The column name to be used a the primary key for the dict.
+        Default None, the user will select from a list of columns present.
+    :type key_col: str | None, optional
+    :return: The next row of the read-in iterator
+    :rtype: Iterable[dict[str, str]]
+    :raises ValueError: No header row in the file, or passed key_col not found
+        present column names.
+    """
+    # Open the file
     with open(file_name, newline='') as csvfile:
+        # Create the reader iterable.
         reader = csv.DictReader(csvfile, delimiter=delim)
+        # Check for a missing header row.
         if reader.fieldnames is None:
             raise ValueError(f"{file_name} has no header!")
         col_keys = reader.fieldnames
+        # Check if a key column was passed.
         if key_col is None:
+            # The error message will allow users to select a key column.
             error_msg = (
                 "\nPlease type in one of the columns present to use as the "
                 f"dictionary key:\n{col_keys}"
             )
             raise ValueError(error_msg)
+        # Check if the passed key_col is actually in the list of columns.
         if key_col not in col_keys:
+            # The error message will allow users to select a new key column.
             error_msg = (
                 f"\n'{key_col}' column not found in {file_name}! Please use "
                 f"one of these columns present:\n{col_keys}"
             )
             raise ValueError(error_msg)
+        # Yield to allow iteration from the reader
         yield from reader
 
 def read_to_grouped_dict(
@@ -42,6 +66,19 @@ def read_to_grouped_dict(
         delim: str = ',',
         key_col: str | None = None
     ) -> dict[str, list[dict[str, str]]]:
+    """
+    Creates a grouped dictionary keyed by the passed key column name.
+
+    :param file_name: The name of the file to read in.
+    :type file_name: str
+    :param delim: The delimiter used in the file. Default comma (,)
+    :type delim: str, optional
+    :param key_col: The name of the column to use as group keys. Default None, 
+        the user will get the opportunity to select.
+    :type key_col: str | None, optional
+    :return: The grouped dictionary from the file.
+    :rtype: dict[str, list[dict[str, str]]]
+    """
     file_dict = {}
     prime_keys = []
     for row in _iter_csv_reader(file_name, delim, key_col):

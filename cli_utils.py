@@ -1,4 +1,8 @@
 """
+Name:       cli_utils.py
+Author:     Phil Hansen
+Version:    20260227
+
 Contains functions for formatting the Command Line Interface output.
 """
 
@@ -22,8 +26,10 @@ def scale_size(bytes: int) -> str:
     """
     Scales the input number of bytes into a more readable format.
 
-    :param bytes: The number of btyes.
+    :param bytes: The number of bytes.
+    :type bytes: int
     :return: The formatted size with units.
+    :rtype: str
     """
     # Check for zero to avoid math errors.
     if bytes == 0:
@@ -43,11 +49,15 @@ def scale_size(bytes: int) -> str:
 
 def truncate(text: str, max_len: int) -> str:
     """
-    Truncates a string to a maximum length.
+    Truncates a string to a maximum length adding an ellipsis to indicate
+    truncation.
     
     :param text: The string to truncate.
+    :type text: str
     :param max_len: The maximum length to truncate to.
+    :type max_len: int
     :return: The truncated string.
+    :rtype: str
     """
     # If the text is shorter than the max length, just return it.
     if len(text) <= max_len:
@@ -59,10 +69,12 @@ def truncate(text: str, max_len: int) -> str:
     
 def camel_case(text: str) -> str:
     """
-    Converts passed to text in Camel Case format preserving spaces.
+    Converts passed to text in Camel Case format, preserves spacing.
     
     :param text: The text to convert
+    :type text: str
     :return: The converted string.
+    :rtype: str
     """
     # First convert underscores and dashes to spaces.
     norm_spaces = text.replace('_', ' ').replace('-', ' ')
@@ -76,16 +88,21 @@ def format(
         color: str = '',
         *,
         style: str = 'bold',
-        reset: bool | str = True
+        reset: bool = True
     ) -> str:
     """
     Format text for terminal output using ANSI styles and colors.
 
-    :param text: Text to format.
-    :param color: Text color.
-    :param style: Text style (default: "bold").
-    :param reset: Reset formatting after text (default: True).
+    :param text: Text to format. Converts Objects to text.
+    :type text: object
+    :param color: Text color. Default no change.
+    :type color: str, optional
+    :param style: Text style. Default "bold".
+    :type style: str, optional
+    :param reset: Reset formatting after text. Default True.
+    :type reset: bool, optional
     :return: Formatted text.
+    :rtype: str
     """
     # Alias assignment check
     # Dictionary to match style choices.
@@ -116,16 +133,25 @@ def format(
     }
     # This resets the formatting back to default text.
     if reset:
-        reset = "\033[0m"
+        reset_str = "\033[0m"
     else:
-        reset = ""
+        reset_str = ""
     # Using .get() to avoid dictionary key errors.
     style = f"{styles.get(style, "")}"
     color = f"{colors.get(color, "")}"
     # Put it all together with the reset at the end.
-    return f"{style}{color}{text}{reset}"
+    return f"{style}{color}{text}{reset_str}"
 
 def grade_color(value: int) -> str:
+    """
+    Converts an integer into a color based on value.
+    <=69: Red, 70-89: Yellow, >=90: Green
+
+    :param value: The input number value.
+    :type value: int
+    :return: The color associated with the number value.
+    :rtype: str
+    """
     if value >= 90:
         return "green"
     elif value  >= 70:
@@ -137,7 +163,9 @@ def ask_yesno(question: str="Is this correct?") -> bool:
     Simple yes or no input. Allows the user to quit too.
     
     :param question: A question to ask the user. (default: "Is this correct?")
+    :type question: str, optional
     :return: True of False depending on the user saying yes or no
+    :rtype: bool
     :raises UserQuitException: The user chose to quit.
     """
     # Standard loop to catch weird inputs.
@@ -150,6 +178,7 @@ def ask_yesno(question: str="Is this correct?") -> bool:
         elif choice.lower() == 'q':
             raise UserQuitException
         else:
+            # Give some helpful text for the user.
             print(
                 f"'{format(choice, 'red')}' isn't a valid option,"
                 " please enter 'y' for yes, 'n' for no, or 'q' to quit."
@@ -165,9 +194,13 @@ def map_desc(
     to items with a description.
     
     :param items: The passed list of items.
+    :type items: list[dict[str, str]]
     :param head: The header to display when listing the items.
+    :type head: dict[str, str]
     :param map: The descriptions to map to the list.
+    :type map: dict[str, str]
     :return: The updated head and list of items.
+    :rtype: tuple[list[dict[str, str]], dict[str, str]]
     """
     # Rebuild the head, adding a description key after first key.
     new_head = {}

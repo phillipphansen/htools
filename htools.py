@@ -1,6 +1,10 @@
 """
-This is an importable helper file for working with various data files. It uses 
-panda, geopandas, numpy, etc. CLI based.
+Name:       htools.py
+Author:     Phil Hansen
+Version:    20260227
+
+This tool is currently configured to add geographic data to NamUs database
+exported csv files. No alterations are made to the original NamUs data.
 """
 
 # =[ Imports ]=================================================================
@@ -8,20 +12,24 @@ import cli_utils as cu
 import std_utils as su
 
 # =[ Global variables ]========================================================
+# The list of options in the main menu while in manual mode.
 main_menu = [
     {"name": "Read-in Case Files"},         # 0
     {"name": "Read-in Geo-files"},          # 1
     {"name": "Enrich with location data"},  # 2
-    {"name": "Write-out JSON file"},         # 3
+    {"name": "Write-out JSON file"},        # 3
     {"name": "List loaded files"},          # 4
     {"name": "List file header"},           # 5
-    {"name": "Write-out CSV file"}              # 6
+    {"name": "Write-out CSV file"}          # 6
 ]
+# These names are hardcoded for speed in auto-mode:
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
 geo_column = "USPS"
 case_filenames = ["namus_missing_v2.csv", "namus_unid.csv", "namus_unclaim.csv"]
 case_column = "State"
+# This is used to provide geographic data for small island areas not provided in
+# US Census data, they represent centroids of the island or groups of islands.
 islands = {
     "GU": {"INTPTLAT": "13.3824", "INTPTLONG": "144.6973"},
     "VI": {"INTPTLAT": "18.3358", "INTPTLONG": "-64.8963"},
@@ -29,6 +37,8 @@ islands = {
     "MP": {"INTPTLAT": "16.70", "INTPTLONG": "145.78"},
     "PR": {"INTPTLAT": "18.2208", "INTPTLONG": "-66.5901"}
 }
+# The suffixes are used to clean the US Census data before matching to the NamUs
+# database data.
 place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
@@ -38,6 +48,8 @@ county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town",
                 "government", "unified", "county", "consolidated", "urban",
                 "metro", "comunidad", "municipality",]
 ak_county_suffixes = ["City", "and", "Borough", "Municipality", "Census", "Area"]
+# This list of states is used to assist the organization of groups in the
+# dictionaries as NamUs data is not consistent with State Names vs Codes.
 states = {
     "Alabama": "AL",
     "Alaska": "AK",
@@ -89,10 +101,8 @@ states = {
     "West Virginia": "WV",
     "Wisconsin": "WI",
     "Wyoming": "WY",
-
-    # District
+    # Washington DC
     "District of Columbia": "DC",
-
     # Territories
     "American Samoa": "AS",
     "Guam": "GU",
@@ -102,6 +112,7 @@ states = {
 }
 
 # =[ Class definitions ]=======================================================
+# This class is not complete and not used
 class CaseRecord:
     case_number: str
     state: str
@@ -114,6 +125,7 @@ class CaseRecord:
 
 
 # =[ Type definitions ]========================================================
+# This type alias has not been implimented yet.
 type CaseDict = dict[str, list[CaseRecord]]
 
 # =[ Function definitions ]====================================================
