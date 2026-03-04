@@ -43,11 +43,13 @@ place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
+"""
 county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town",
                 "village", "borough", "zona", "urbana", "(balance)", "and",
                 "government", "unified", "county", "consolidated", "urban",
                 "metro", "comunidad", "municipality",]
 ak_county_suffixes = ["City", "and", "Borough", "Municipality", "Census", "Area"]
+"""
 # This list of states is used to assist the organization of groups in the
 # dictionaries as NamUs data is not consistent with State Names vs Codes.
 states = {
@@ -254,6 +256,10 @@ def enrich_counties(
     tot_fixes = 0
     tot_items = 0
     for state in case_file:
+        # This confusing little bit is to ensure the state abbreviation is used
+        # as one of the NamUs dataset uses full state names for some reason. 
+        if state in states:
+            state = states[state]
         st_fixes = 0
         st_total = 0
         for row in case_file[state]:
@@ -264,8 +270,10 @@ def enrich_counties(
                 st_total += 1
                 continue
             no_match = True
+            row_cnty_norm = str(row["County"]).lower()
             for county in enrichment[state]:
-                if str(county["NAME"]).lower() == str(row["County"]).lower():
+                cnty_norm = str(county["NAME"]).lower()
+                if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
                     row["INTPTLAT_County"] = county["INTPTLAT"]
                     row["INTPTLONG_County"] = county["INTPTLONG"]
                     no_match = False
