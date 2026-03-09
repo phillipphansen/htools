@@ -297,7 +297,7 @@ def enrich_county_ll(
         color
     ))
 
-enrich_county_demo(
+def enrich_county_demo(
         case_file: dict[str, list[dict[str, str]]],
         enrichment: dict[str, list[dict[str, str]]]
     ) -> None:
@@ -329,6 +329,7 @@ enrich_county_demo(
                     break
             if no_match:
                 # TODO: Figure out data you want to have to blank here.
+                pass
             st_total += 1
         tot_fixes += st_fixes
         tot_items += st_total
@@ -393,7 +394,7 @@ def manual_mode() -> None:
                 # clean_countynames(file_dict)
                 county_dict = file_dict
                 county_file_name = file_name
-            elif sub_choice = "2":
+            elif sub_choice == "2":
                 file_dict = su.read_to_grouped_dict(
                     file_name, key_col='State'
                 )
