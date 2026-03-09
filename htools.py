@@ -249,7 +249,7 @@ def enrich_places(
         color
     ))
 
-def enrich_counties(
+def enrich_county_ll(
         case_file: dict[str, list[dict[str, str]]],
         enrichment: dict[str, list[dict[str, str]]]
     ) -> None:
@@ -297,6 +297,53 @@ def enrich_counties(
         color
     ))
 
+enrich_county_demo(
+        case_file: dict[str, list[dict[str, str]]],
+        enrichment: dict[str, list[dict[str, str]]]
+    ) -> None:
+    pass
+    # TODO: Write function to add USDA demographic data.
+    tot_fixes = 0
+    tot_items = 0
+    for state in case_file:
+        # This confusing little bit is to ensure the state abbreviation is used
+        # as one of the NamUs dataset uses full state names for some reason. 
+        if state in states:
+            state = states[state]
+        st_fixes = 0
+        st_total = 0
+        for row in case_file[state]:
+            if state in islands and state != "PR":
+                # TODO: Figure out how to handle demo info for non-PR islands.
+                st_fixes += 1
+                st_total += 1
+                continue
+            no_match = True
+            row_cnty_norm = str(row["County"]).lower()
+            for county in enrichment[state]:
+                cnty_norm = str(county["Area_Name"]).lower()
+                if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
+                    # TODO: Figure out what data you want to enrich
+                    no_match = False
+                    st_fixes += 1
+                    break
+            if no_match:
+                # TODO: Figure out data you want to have to blank here.
+            st_total += 1
+        tot_fixes += st_fixes
+        tot_items += st_total
+        percent = round((st_fixes / st_total) * 100)
+        color = cu.grade_color(percent)
+        print(cu.format(
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color
+        ))
+    tot_per = round((tot_fixes / tot_items) * 100)
+    color = cu.grade_color(tot_per)
+    print(cu.format(
+        f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.",
+        color
+    ))
+
 def read_file_auto(
         file_name: str,
         *,
@@ -318,6 +365,7 @@ def manual_mode() -> None:
     case_files = {}
     place_dict = None
     county_dict = None
+    usda_dict = None
     while True:
         choice = cu.select_item(main_menu, return_key="_index_")
         if choice == "0":
@@ -327,23 +375,32 @@ def manual_mode() -> None:
         # Read-in Geo Files
         elif choice == "1":
             print("What type of geo file will you be reading in?")
-            sub_choice = cu.select_item_simple(["Places", "Counties"])
+            sub_choice = cu.select_item_simple(["Places", "County Lat/Lons", "County Demographics"])
             file_name = cu.select_file(file_type='*.txt')
-            file_dict = su.read_to_grouped_dict(
-                file_name, key_col='USPS', delim='|'
-            )
             # Places File
             if sub_choice == "0":
+                file_dict = su.read_to_grouped_dict(
+                    file_name, key_col='USPS', delim='|'
+                )
                 clean_placenames(file_dict)
                 place_dict = file_dict
                 place_file_name = file_name
             # Counties File
             elif sub_choice == "1":
-                clean_countynames(file_dict)
+                file_dict = su.read_to_grouped_dict(
+                    file_name, key_col='USPS', delim='|'
+                )
+                # clean_countynames(file_dict)
                 county_dict = file_dict
                 county_file_name = file_name
+            elif sub_choice = "2":
+                file_dict = su.read_to_grouped_dict(
+                    file_name, key_col='State'
+                )
+                usda_dict = file_dict
+                usda_file_name = file_name
         elif choice == "2":
-            if not place_dict or not county_dict:
+            if not usda_dict or not county_dict:
                 print(cu.format(
                     "No geo files loaded! Load a places file first!",
                     "red"
@@ -351,9 +408,10 @@ def manual_mode() -> None:
                 continue
             print("Select the case file to be enriched:")
             case_file = cu.select_item_simple(case_files, return_index=False)
-            enrich_places(case_files[case_file], place_dict)
-            input("Places enriched, press ENTER to enrich counties...")
-            enrich_counties(case_files[case_file], county_dict)
+            # enrich_places(case_files[case_file], place_dict)
+            # input("Places enriched, press ENTER to enrich counties...")
+            enrich_county_ll(case_files[case_file], county_dict)
+            enrich_county_demo(case_files[case_file], usda_dict)
         elif choice == "3":
             file = cu.select_item_simple(case_files, return_index=False)
             save_name = input(f"\nEnter a name to save {file} as: ")
@@ -363,7 +421,9 @@ def manual_mode() -> None:
             if place_dict:
                 print(f"{place_file_name} loaded as places dictionary")
             if county_dict:
-                print(f"{county_file_name} loaded as counties dictionary")
+                print(f"{county_file_name} loaded as county lat/lon dictionary")
+            if usda_dict:
+                print(f"{usda_file_name} loaded as county demographic dictionary")
             if case_files:
                 print("Case files loaded:")
                 for case in case_files:
