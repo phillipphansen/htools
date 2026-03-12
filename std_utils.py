@@ -16,7 +16,9 @@ from pathlib import Path
 def _iter_csv_reader(
         file_name: str,
         delim: str = ',',
-        key_col: str | None = None
+        encoding: str = 'utf-8',
+        key_col: str | None = None,
+        sec_col: str | None = None
     ) -> Iterable[dict[str, str]]:
     """
     This is an iterator function to allow the two different read-in functions
@@ -35,7 +37,7 @@ def _iter_csv_reader(
         present column names.
     """
     # Open the file
-    with open(file_name, newline='') as csvfile:
+    with open(file_name, newline='', encoding=encoding) as csvfile:
         # Create the reader iterable.
         reader = csv.DictReader(csvfile, delimiter=delim)
         # Check for a missing header row.
@@ -43,6 +45,7 @@ def _iter_csv_reader(
             raise ValueError(f"{file_name} has no header!")
         col_keys = reader.fieldnames
         # Check if a key column was passed.
+        # TODO: Add logic to check for secondary grouping.
         if key_col is None:
             # The error message will allow users to select a key column.
             error_msg = (
@@ -64,6 +67,7 @@ def _iter_csv_reader(
 def read_to_grouped_dict(
         file_name: str,
         delim: str = ',',
+        encoding: str = 'utf-8',
         key_col: str | None = None
     ) -> dict[str, list[dict[str, str]]]:
     """
@@ -81,24 +85,50 @@ def read_to_grouped_dict(
     """
     file_dict = {}
     prime_keys = []
-    for row in _iter_csv_reader(file_name, delim, key_col):
+    for row in _iter_csv_reader(file_name, delim, encoding, key_col):
         # This is guaranteed from the _iter_csv_reader function, but shuts the
         # type checker up.
         assert key_col is not None
         prime_key = row[key_col]
+        # NOTE: Is the below needed anymore? Where used?
         if prime_key not in prime_keys:
             prime_keys.append(prime_key)
             file_dict[prime_key] = []
         file_dict[prime_key].append(row)
     return file_dict
 
+def read_to_double_grouped_dict(
+        file_name: str,
+        delim: str = ',',
+        encoding: str = 'utf-8',
+        key_col: str | None = None,
+        sec_col: str | None = None
+    ) -> dict[str, dict[str, list[dict[str, str]]]]:
+    file_dict = {}
+    found_keys = {}
+    for row in _iter_csv_reader(file_name, delim, encoding, key_col):
+        # This is guaranteed from the _iter_csv_reader function, but shuts the
+        # type checker up.
+        assert key_col is not None
+        prime_key = row[key_col]
+        sec_key = row[sec_col]
+        if prime_key not in found_keys:
+            found_keys[prime_key] = []
+            file_dict[prime_key] = {}
+        if sec_key not in found_keys[prime_key]:
+            found_keys[prime_key].append(sec_key)
+            file_dict[prime_key][sec_key] = []
+        file_dict[prime_key][sec_key].append(row)
+    return file_dict
+
 def read_to_indexed_dict(
         file_name: str,
         delim: str = ',',
+        encoding: str = 'utf-8',
         key_col: str | None = None,
     ) -> dict[str, dict[str, str]]:
     file_dict = {}
-    for row in _iter_csv_reader(file_name, delim, key_col):
+    for row in _iter_csv_reader(file_name, delim, encoding, key_col):
         # This is guaranteed from the _iter_csv_reader function, but shuts the
         # type checker up.
         assert key_col is not None

@@ -22,6 +22,14 @@ main_menu = [
     {"name": "List file header"},           # 5
     {"name": "Write-out CSV file"}          # 6
 ]
+# Master dictionary for couty-level data aggregation
+county_data_files: dict[str, dict[str, dict[str, list[dict[str, str]]]]] = {
+    'census_ll':{},
+    'population': {},
+    'unemployment': {},
+    'poverty': {},
+    'education': {}
+}
 # These names are hardcoded for speed in auto-mode:
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
@@ -37,6 +45,10 @@ islands = {
     "MP": {"INTPTLAT": "16.70", "INTPTLONG": "145.78"},
     "PR": {"INTPTLAT": "18.2208", "INTPTLONG": "-66.5901"}
 }
+demo_cols = ["Rural_Urban_Continuum_Code_2023", "Urban_Influence_2013",
+    "Economic_typology_2015", "CENSUS_2020_POP", "POP_ESTIMATE_2023", 
+    "N_POP_CHG_2023", "INTERNATIONAL_MIG_2023", "DOMESTIC_MIG_2023",
+    "NET_MIG_2023"]
 # The suffixes are used to clean the US Census data before matching to the NamUs
 # database data.
 place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
@@ -177,6 +189,17 @@ def clean_countynames(county_file: dict[str, list[dict[str, str]]]) -> None:
                     corrections += 1
             if corrections == 0:
                 break
+
+def norm_geoid(geoid: Any) -> str:
+    """
+    Normalizes the GEOID value to a 5 digit string with leading zeros.
+
+    :param geoid: The input value to be normalized
+    :type geoid: Any
+    :return: The normalized string.
+    :rtype: str
+    """
+    return str(geoid).strip().zfill(5)
     
 def clean_states(case_list: list[dict[str, str]]) -> None:
     """
@@ -249,6 +272,11 @@ def enrich_places(
         color
     ))
 
+def enrich_geiod(
+    case_file: dict[str, list[dict[str, str]]],
+    enrichment: dict[str, list[dict[str, str]]]):
+    pass
+
 def enrich_county_ll(
         case_file: dict[str, list[dict[str, str]]],
         enrichment: dict[str, list[dict[str, str]]]
@@ -299,7 +327,7 @@ def enrich_county_ll(
 
 def enrich_county_demo(
         case_file: dict[str, list[dict[str, str]]],
-        enrichment: dict[str, list[dict[str, str]]]
+        enrichment: dict[str, dict[str, list[dict[str, str]]]]
     ) -> None:
     pass
     # TODO: Write function to add USDA demographic data.
@@ -321,15 +349,17 @@ def enrich_county_demo(
             no_match = True
             row_cnty_norm = str(row["County"]).lower()
             for county in enrichment[state]:
-                cnty_norm = str(county["Area_Name"]).lower()
+                cnty_norm = str(county).lower()
                 if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
-                    # TODO: Figure out what data you want to enrich
+                    for item in enrichment[state][county]:
+                        if item['Attribute'] in demo_cols:
+                            row[item['Attribute']] = item['Value']
                     no_match = False
                     st_fixes += 1
                     break
             if no_match:
-                # TODO: Figure out data you want to have to blank here.
-                pass
+                for item in demo_cols:
+                    row[item] = ""
             st_total += 1
         tot_fixes += st_fixes
         tot_items += st_total
@@ -362,6 +392,9 @@ def combine_case_files(case_file_1: dict[str, list[dict[str, str]]]) -> None:
 
     pass
 
+def combine_county_data_files(couty_files: dict[str, dict[str, list[dict[str, str]]]]):
+    
+
 def manual_mode() -> None:
     case_files = {}
     place_dict = None
@@ -377,7 +410,7 @@ def manual_mode() -> None:
         elif choice == "1":
             print("What type of geo file will you be reading in?")
             sub_choice = cu.select_item_simple(["Places", "County Lat/Lons", "County Demographics"])
-            file_name = cu.select_file(file_type='*.txt')
+            file_name = cu.select_file()
             # Places File
             if sub_choice == "0":
                 file_dict = su.read_to_grouped_dict(
@@ -395,8 +428,8 @@ def manual_mode() -> None:
                 county_dict = file_dict
                 county_file_name = file_name
             elif sub_choice == "2":
-                file_dict = su.read_to_grouped_dict(
-                    file_name, key_col='State'
+                file_dict = su.read_to_double_grouped_dict(
+                    file_name, encoding='latin-1', key_col='State', sec_col='Area_Name'
                 )
                 usda_dict = file_dict
                 usda_file_name = file_name
