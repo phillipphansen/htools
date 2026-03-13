@@ -10,17 +10,19 @@ exported csv files. No alterations are made to the original NamUs data.
 # =[ Imports ]=================================================================
 import cli_utils as cu
 import std_utils as su
+from typing import TypeAlias
 
 # =[ Global variables ]========================================================
 # The list of options in the main menu while in manual mode.
 main_menu = [
-    {"name": "Read-in Case Files"},         # 0
-    {"name": "Read-in Geo-files"},          # 1
-    {"name": "Enrich with location data"},  # 2
-    {"name": "Write-out JSON file"},        # 3
-    {"name": "List loaded files"},          # 4
-    {"name": "List file header"},           # 5
-    {"name": "Write-out CSV file"}          # 6
+    {"name": "Read-in Case Files"},             # 0
+    {"name": "Read-in Geo-files"},              # 1
+    {"name": "Enrich with GEOIDs"},             # 2
+    {"name": "Write-out JSON file"},            # 3
+    {"name": "List loaded files"},              # 4
+    {"name": "List file header"},               # 5
+    {"name": "Write-out CSV file"},             # 6
+    {"name": "Combine County-level Datasets"}   # 7
 ]
 # Master dictionary for couty-level data aggregation
 county_data_files: dict[str, dict[str, dict[str, list[dict[str, str]]]]] = {
@@ -38,6 +40,72 @@ case_filenames = ["namus_missing_v2.csv", "namus_unid.csv", "namus_unclaim.csv"]
 case_column = "State"
 # This is used to provide geographic data for small island areas not provided in
 # US Census data, they represent centroids of the island or groups of islands.
+TERRITORIES = {
+    "GU": {
+        # Guam (single county equivalent)
+        "66010": {
+            "name": "Guam",
+            "ll": (13.4054, 144.7517),  # approximate center point of Guam :contentReference[oaicite:1]{index=1}
+        },
+    },
+    "AS": {
+        # American Samoa Districts / equivalents
+        "60010": {
+            "name": "Eastern District",
+            "ll": (-14.2845, -170.6480),  # center of Eastern District :contentReference[oaicite:2]{index=2}
+        },
+        "60020": {
+            "name": "Manu'a District",
+            "ll": (-14.2053, -169.5410),  # center of Manu'a District :contentReference[oaicite:3]{index=3}
+        },
+        "60030": {
+            "name": "Rose Island (Rose Atoll)",
+            "ll": (-14.5833, -168.1500),  # approximate lat/lon (small atoll)
+        },
+        "60040": {
+            "name": "Swains Island",
+            "ll": (-11.0650, -171.0600),  # approximate geographic center
+        },
+        "60050": {
+            "name": "Western District",
+            "ll": (-14.3000, -170.7500),  # approximate middle of western districts
+        },
+    },
+    "MP": {
+        # Northern Mariana Islands municipalities
+        "69085": {
+            "name": "Northern Islands Municipality",
+            "ll": (16.0000, 145.7500),  # rough central Pacific location (cluster of northern isles)
+        },
+        "69100": {
+            "name": "Rota Municipality",
+            "ll": (14.1522, 145.2018),  # Rota approximate center :contentReference[oaicite:4]{index=4}
+        },
+        "69110": {
+            "name": "Saipan Municipality",
+            "ll": (15.2123, 145.7545),  # Saipan approximate center :contentReference[oaicite:5]{index=5}
+        },
+        "69120": {
+            "name": "Tinian Municipality",
+            "ll": (14.9700, 145.6200),  # approximate center near Tinian island :contentReference[oaicite:6]{index=6}
+        },
+    },
+    "VI": {
+        # U.S. Virgin Islands county equivalents
+        "78010": {
+            "name": "St. Croix",
+            "ll": (17.7500, -64.7000),  # approximate center of St. Croix
+        },
+        "78020": {
+            "name": "St. John",
+            "ll": (18.3300, -64.7300),  # approximate center of St. John
+        },
+        "78030": {
+            "name": "St. Thomas",
+            "ll": (18.3400, -64.9300),  # approximate center of St. Thomas
+        },
+    },
+}
 islands = {
     "GU": {"INTPTLAT": "13.3824", "INTPTLONG": "144.6973"},
     "VI": {"INTPTLAT": "18.3358", "INTPTLONG": "-64.8963"},
@@ -126,21 +194,12 @@ states = {
 }
 
 # =[ Class definitions ]=======================================================
-# This class is not complete and not used
-class CaseRecord:
-    case_number: str
-    state: str
-    date_last_contact: str
-    last_name: str
-    first_name: str
-    missing_age: int
-    
-    pass
-
 
 # =[ Type definitions ]========================================================
 # This type alias has not been implimented yet.
-type CaseDict = dict[str, list[CaseRecord]]
+
+type GroupedDict = dict[str, list[dict[str, str]]]
+type DoubleGroupedDict = dict[str, GroupedDict]
 
 # =[ Function definitions ]====================================================
 def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
@@ -273,9 +332,58 @@ def enrich_places(
     ))
 
 def enrich_geiod(
-    case_file: dict[str, list[dict[str, str]]],
-    enrichment: dict[str, list[dict[str, str]]]):
-    pass
+    case_file: GroupedDict,
+    enrichment: GroupedDict
+    ) -> None:
+    """
+    Adds the 5-digit FIPS GEOID value for the county or territory of the case
+    for quick data lookups.
+
+    :param case_file: The loaded casefile to be enriched.
+    :type case_file: GroupedDict
+    :param enrichment: The loaded US Census county locations file.
+    :param enrichment: GroupedDict
+    """
+    tot_fixes = 0
+    tot_items = 0
+    for state in case_file:
+        # This confusing little bit is to ensure the state abbreviation is used
+        # as one of the NamUs dataset uses full state names for some reason. 
+        if state in states:
+            state = states[state]
+        st_fixes = 0
+        st_total = 0
+        for row in case_file[state]:
+            if state in islands:
+                row["GEOID"] = islands[state]["GEIOD"]
+                st_fixes += 1
+                st_total += 1
+                continue
+            no_match = True
+            row_cnty_norm = str(row["County"]).lower()
+            for county in enrichment[state]:
+                cnty_norm = str(county["NAME"]).lower()
+                if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
+                    row["GEOID"] = county["GEOID"]
+                    no_match = False
+                    st_fixes += 1
+                    break
+            if no_match:
+                row["GEOID"] = ""
+            st_total += 1
+        tot_fixes += st_fixes
+        tot_items += st_total
+        percent = round((st_fixes / st_total) * 100)
+        color = cu.grade_color(percent)
+        print(cu.format(
+            f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color
+        ))
+    tot_per = round((tot_fixes / tot_items) * 100)
+    color = cu.grade_color(tot_per)
+    print(cu.format(
+        f"{tot_fixes}/{tot_items} ({tot_per}%) enriched for all County data.",
+        color
+    ))
 
 def enrich_county_ll(
         case_file: dict[str, list[dict[str, str]]],
@@ -393,7 +501,7 @@ def combine_case_files(case_file_1: dict[str, list[dict[str, str]]]) -> None:
     pass
 
 def combine_county_data_files(couty_files: dict[str, dict[str, list[dict[str, str]]]]):
-    
+    pass
 
 def manual_mode() -> None:
     case_files = {}
@@ -476,7 +584,8 @@ def manual_mode() -> None:
         else:
             print("I don't know that command yet.\n")
 
-def auto_mode() -> None:
+def auto_mode_old() -> None:
+    # This is the previous auto_mode functions before the GEIOD rewrite.
     case_files = {}
     print(cu.format(f"Reading {place_filename}...", 'cyan'), end="", flush=True)
     place_file = read_file_auto(place_filename, delim='|', key_col=geo_column)
