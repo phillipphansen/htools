@@ -487,10 +487,11 @@ def read_file_auto(
         file_name: str,
         *,
         delim: str = ',',
+        encoding: str = 'utf-8',
         key_col: str | None = None
         ) -> dict[str, list[dict[str, str]]]:
     try:
-        return su.read_to_grouped_dict(file_name, delim, key_col)
+        return su.read_to_grouped_dict(file_name, delim=delim, key_col=key_col)
     except ValueError as e:
         print(cu.format(e, "red"))
         key_col = input("Enter the key column name: ")
@@ -618,13 +619,36 @@ def auto_mode_old() -> None:
         print(cu.format("Done!", 'cyan'))
 
 
+def auto_mode() -> None:
+    # GEOID Auto Mode function.
+    case_files = {}
+    print(cu.format(f"Reading {county_filename}...", 'cyan'), end="", flush=True)
+    county_file = read_file_auto(f"./base/{county_filename}", delim='|', key_col=geo_column)
+    print(cu.format("Done!", 'cyan'))
+    current_time = cu.dt.today().strftime("%Y%m%d%H%M")
+    for file_name in case_filenames:
+        print(cu.format(f"Reading {file_name}...", 'cyan'), end="", flush=True)
+        case_file = read_file_auto(f"./base/{file_name}", key_col=case_column)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Sorting {file_name}...", 'cyan'), end="", flush=True)
+        case_file = sort_case(case_file)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Enriching {file_name}...", 'cyan'), flush=True)
+        enrich_geoid(case_file, place_file)
+        print(cu.format("Done!", 'cyan'))
+        name_norm = file_name.split('.')[0]
+        save_name = f"{name_norm}_{current_time}.csv"
+        print(cu.format(f"Saving {save_name}...", 'cyan'), end="", flush=True)
+        su.write_csv(case_file, save_name)
+        print(cu.format("Done!", 'cyan'))
+
 # =[ Main Fuction ]============================================================
 def main():
     print(cu.format("\nFile Combiner. Good luck.\n", 'cyan'))
     # Try/except block for all user inputs
     try:
-        # auto_mode()
-        manual_mode()
+        auto_mode()
+        # manual_mode()
     except cu.UserQuitException:
         cu.quit()
     # except FileNotFoundError as e:
