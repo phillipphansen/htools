@@ -33,97 +33,107 @@ county_data_files: dict[str, dict[str, dict[str, list[dict[str, str]]]]] = {
     'education': {}
 }
 # These names are hardcoded for speed in auto-mode:
+dir_path = "base/"
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
-geo_column = "USPS"
-case_filenames = ["namus_missing_v2.csv", "namus_unid.csv", "namus_unclaim.csv"]
+geo_column = "GEOID"
+st_column = "USPS"
+case_filenames = ["missing_namus.csv", "unid_namus.csv", "unclaim_namus.csv"]
 case_column = "State"
 # This is used to provide geographic data for small island areas not provided in
 # US Census data, they represent centroids of the island or groups of islands.
 TERRITORIES = {
     "GU": {
         # Guam (single county equivalent)
-        "66010": {
-            "name": "Guam",
-            "ll": (13.4054, 144.7517),  # approximate center point of Guam :contentReference[oaicite:1]{index=1}
+        "Guam": {
+            "NAME": "Guam",
+            "GEOID": "66010",
+            "LL": (13.4054, 144.7517),  # approximate center point of Guam
         },
     },
     "AS": {
         # American Samoa Districts / equivalents
-        "60010": {
-            "name": "Eastern District",
-            "ll": (-14.2845, -170.6480),  # center of Eastern District :contentReference[oaicite:2]{index=2}
+        "Eastern District": {
+            "NAME": "Eastern District",
+            "GEOID": "60010",
+            "LL": (-14.2845, -170.6480),  # center of Eastern District
         },
-        "60020": {
-            "name": "Manu'a District",
-            "ll": (-14.2053, -169.5410),  # center of Manu'a District :contentReference[oaicite:3]{index=3}
+        "Manu'a District": {
+            "NAME": "Manu'a District",
+            "GEOID": "60020",
+            "LL": (-14.2053, -169.5410),  # center of Manu'a District
         },
-        "60030": {
-            "name": "Rose Island (Rose Atoll)",
-            "ll": (-14.5833, -168.1500),  # approximate lat/lon (small atoll)
+        "Rose Island (Rose Atoll)": {
+            "NAME": "Rose Island (Rose Atoll)",
+            "GEOID": "60030",
+            "LL": (-14.5833, -168.1500),  # approximate lat/lon (small atoll)
         },
-        "60040": {
-            "name": "Swains Island",
-            "ll": (-11.0650, -171.0600),  # approximate geographic center
+        "600Swains Island40": {
+            "NAME": "Swains Island",
+            "GEOID": "60040",
+            "LL": (-11.0650, -171.0600),  # approximate geographic center
         },
-        "60050": {
-            "name": "Western District",
-            "ll": (-14.3000, -170.7500),  # approximate middle of western districts
+        "estern District": {
+            "NAME": "Western District",
+            "GEOID": "60050",
+            "LL": (-14.3000, -170.7500),  # approximate middle of western districts
         },
     },
     "MP": {
         # Northern Mariana Islands municipalities
-        "69085": {
-            "name": "Northern Islands Municipality",
-            "ll": (16.0000, 145.7500),  # rough central Pacific location (cluster of northern isles)
+        "Northern Islands Municipality": {
+            "NAME": "Northern Islands Municipality",
+            "GEOID": "69085",
+            "LL": (16.0000, 145.7500),  # rough central Pacific location (cluster of northern isles)
         },
-        "69100": {
-            "name": "Rota Municipality",
-            "ll": (14.1522, 145.2018),  # Rota approximate center :contentReference[oaicite:4]{index=4}
+        "Rota Municipality": {
+            "NAME": "Rota Municipality",
+            "GEOID": "69100",
+            "LL": (14.1522, 145.2018),  # Rota approximate center
         },
-        "69110": {
-            "name": "Saipan Municipality",
-            "ll": (15.2123, 145.7545),  # Saipan approximate center :contentReference[oaicite:5]{index=5}
+        "Saipan Municipality": {
+            "NAME": "Saipan Municipality",
+            "GEOID": "69110",
+            "LL": (15.2123, 145.7545),  # Saipan approximate center
         },
-        "69120": {
-            "name": "Tinian Municipality",
-            "ll": (14.9700, 145.6200),  # approximate center near Tinian island :contentReference[oaicite:6]{index=6}
+        "Tinian Municipality": {
+            "NAME": "Tinian Municipality",
+            "GEOID": "69120",
+            "LL": (14.9700, 145.6200),  # approximate center near Tinian island
         },
     },
     "VI": {
         # U.S. Virgin Islands county equivalents
-        "78010": {
-            "name": "St. Croix",
-            "ll": (17.7500, -64.7000),  # approximate center of St. Croix
+        "St. Croix": {
+            "NAME": "St. Croix",
+            "GEOID": "78010",
+            "LL": (17.7500, -64.7000),  # approximate center of St. Croix
         },
-        "78020": {
-            "name": "St. John",
-            "ll": (18.3300, -64.7300),  # approximate center of St. John
+        "St. John": {
+            "NAME": "St. John",
+            "GEOID": "78020",
+            "LL": (18.3300, -64.7300),  # approximate center of St. John
         },
-        "78030": {
-            "name": "St. Thomas",
-            "ll": (18.3400, -64.9300),  # approximate center of St. Thomas
+        "St. Thomas": {
+            "NAME": "St. Thomas",
+            "GEOID": "78030",
+            "LL": (18.3400, -64.9300),  # approximate center of St. Thomas
         },
     },
 }
-islands = {
-    "GU": {"INTPTLAT": "13.3824", "INTPTLONG": "144.6973"},
-    "VI": {"INTPTLAT": "18.3358", "INTPTLONG": "-64.8963"},
-    "AS": {"INTPTLAT": "-14.2710", "INTPTLONG": "-170.1322"},
-    "MP": {"INTPTLAT": "16.70", "INTPTLONG": "145.78"},
-    "PR": {"INTPTLAT": "18.2208", "INTPTLONG": "-66.5901"}
-}
+"""
 demo_cols = ["Rural_Urban_Continuum_Code_2023", "Urban_Influence_2013",
     "Economic_typology_2015", "CENSUS_2020_POP", "POP_ESTIMATE_2023", 
     "N_POP_CHG_2023", "INTERNATIONAL_MIG_2023", "DOMESTIC_MIG_2023",
     "NET_MIG_2023"]
+"""
 # The suffixes are used to clean the US Census data before matching to the NamUs
 # database data.
+"""
 place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
-"""
 county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town",
                 "village", "borough", "zona", "urbana", "(balance)", "and",
                 "government", "unified", "county", "consolidated", "urban",
@@ -193,6 +203,7 @@ states = {
     "Virgin Islands": "VI"
 }
 
+
 # =[ Class definitions ]=======================================================
 
 # =[ Type definitions ]========================================================
@@ -202,6 +213,9 @@ type GroupedDict = dict[str, list[dict[str, str]]]
 type DoubleGroupedDict = dict[str, GroupedDict]
 
 # =[ Function definitions ]====================================================
+def cat_directory(file_name: str) -> str:
+    return dir_path + file_name
+
 def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
     for state in place_list:
         while True:
@@ -274,6 +288,15 @@ def clean_states(case_list: list[dict[str, str]]) -> None:
 def sort_case(
         case_file: dict[str, list[dict[str, str]]]
     ) -> dict[str, list[dict[str, str]]]:
+    """
+    Sorts the cases in alphabetical state order. Normalized group keys to two-
+    letter state abbreviation i.e. Alabama to AL
+
+    :param case_list: The cases to be sorted and normed.
+    :type case_list: dict[str, list[dict[str, str]]]
+    :return: The sorted case file dictionary
+    :rtype: dict[str, list[dict[str, str]]]
+    """
     first_key = next(iter(case_file))
     if first_key in states:
         norm_dict = {}
@@ -331,7 +354,7 @@ def enrich_places(
         color
     ))
 
-def enrich_geiod(
+def enrich_geoid(
     case_file: GroupedDict,
     enrichment: GroupedDict
     ) -> None:
@@ -354,21 +377,27 @@ def enrich_geiod(
         st_fixes = 0
         st_total = 0
         for row in case_file[state]:
-            if state in islands:
-                row["GEOID"] = islands[state]["GEIOD"]
-                st_fixes += 1
-                st_total += 1
-                continue
             no_match = True
             row_cnty_norm = str(row["County"]).lower()
+            if state in TERRITORIES:
+                for county in TERRITORIES[state]:
+                    cnty_norm = str(county).lower()
+                    if row_cnty_norm == cnty_norm or (
+                        row_cnty_norm in cnty_norm or cnty_norm in row_cnty_norm):
+                        row["GEOID"] = TERRITORIES[state][county]["GEOID"]
+                        st_fixes += 1
+                st_total += 1
+                continue
             for county in enrichment[state]:
                 cnty_norm = str(county["NAME"]).lower()
                 if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
-                    row["GEOID"] = county["GEOID"]
+                    row["GEOID"] = str(county["GEOID"]).strip().zfill(5)
                     no_match = False
                     st_fixes += 1
                     break
             if no_match:
+                # TODO: Recheck using Place data to get GEOID
+                # Connecticut and all Territories have significant issues.
                 row["GEOID"] = ""
             st_total += 1
         tot_fixes += st_fixes
@@ -501,7 +530,7 @@ def combine_case_files(case_file_1: dict[str, list[dict[str, str]]]) -> None:
 
     pass
 
-def combine_county_data_files(couty_files: dict[str, dict[str, list[dict[str, str]]]]):
+def combine_county_data_files(county_files: dict[str, dict[str, list[dict[str, str]]]]):
     pass
 
 def manual_mode() -> None:
@@ -623,8 +652,13 @@ def auto_mode() -> None:
     # GEOID Auto Mode function.
     case_files = {}
     print(cu.format(f"Reading {county_filename}...", 'cyan'), end="", flush=True)
-    county_file = read_file_auto(f"./base/{county_filename}", delim='|', key_col=geo_column)
+    county_file = read_file_auto(f"./base/{county_filename}", delim='|', key_col=st_column)
     print(cu.format("Done!", 'cyan'))
+    i = 0
+    while i<15:
+        for key in county_file.keys():
+            print(key)
+            i += 1
     current_time = cu.dt.today().strftime("%Y%m%d%H%M")
     for file_name in case_filenames:
         print(cu.format(f"Reading {file_name}...", 'cyan'), end="", flush=True)
@@ -634,7 +668,7 @@ def auto_mode() -> None:
         case_file = sort_case(case_file)
         print(cu.format("Done!", 'cyan'))
         print(cu.format(f"Enriching {file_name}...", 'cyan'), flush=True)
-        enrich_geoid(case_file, place_file)
+        enrich_geoid(case_file, county_file)
         print(cu.format("Done!", 'cyan'))
         name_norm = file_name.split('.')[0]
         save_name = f"{name_norm}_{current_time}.csv"
