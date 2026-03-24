@@ -33,7 +33,6 @@ county_data_files: dict[str, dict[str, dict[str, list[dict[str, str]]]]] = {
     'education': {}
 }
 # These names are hardcoded for speed in auto-mode:
-dir_path = "base/"
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
 geo_column = "GEOID"
@@ -68,12 +67,12 @@ TERRITORIES = {
             "GEOID": "60030",
             "LL": (-14.5833, -168.1500),  # approximate lat/lon (small atoll)
         },
-        "600Swains Island40": {
+        "Swains Island": {
             "NAME": "Swains Island",
             "GEOID": "60040",
             "LL": (-11.0650, -171.0600),  # approximate geographic center
         },
-        "estern District": {
+        "Western District": {
             "NAME": "Western District",
             "GEOID": "60050",
             "LL": (-14.3000, -170.7500),  # approximate middle of western districts
@@ -129,11 +128,12 @@ demo_cols = ["Rural_Urban_Continuum_Code_2023", "Urban_Influence_2013",
 """
 # The suffixes are used to clean the US Census data before matching to the NamUs
 # database data.
-"""
+
 place_suffixes = ["CDP", "city", "town", "village", "borough", "zona",
                 "urbana", "(balance)", "and", "government", "unified",
                 "county", "consolidated", "urban", "metro", "comunidad",
                 "municipality",]
+"""
 county_suffixes = ["County", "Parish", "Municipio", "CDP", "city", "town",
                 "village", "borough", "zona", "urbana", "(balance)", "and",
                 "government", "unified", "county", "consolidated", "urban",
@@ -213,9 +213,6 @@ type GroupedDict = dict[str, list[dict[str, str]]]
 type DoubleGroupedDict = dict[str, GroupedDict]
 
 # =[ Function definitions ]====================================================
-def cat_directory(file_name: str) -> str:
-    return dir_path + file_name
-
 def clean_placenames(place_list: dict[str,list[dict[str, str]]]) -> None:
     for state in place_list:
         while True:
@@ -262,6 +259,18 @@ def clean_countynames(county_file: dict[str, list[dict[str, str]]]) -> None:
                     corrections += 1
             if corrections == 0:
                 break
+
+def extract_place_geoid(place_geoid: str) -> str:
+    """
+    Extracts the 5-digit county or county-equivalent FIPS or GEOID from the long
+    form place-level GEOID.
+
+    :param place_geoid: The long form GEOID to extract from
+    :type place_geoid: str
+    :return: The extracted 5-digit GEOID
+    :rtype: str
+    """
+    return place_geoid[-7:-2]
 
 def norm_geoid(geoid: Any) -> str:
     """
@@ -356,7 +365,8 @@ def enrich_places(
 
 def enrich_geoid(
     case_file: GroupedDict,
-    enrichment: GroupedDict
+    enrichment: GroupedDict,
+    backup_enrichment: GroupedDict
     ) -> None:
     """
     Adds the 5-digit FIPS GEOID value for the county or territory of the case
@@ -378,10 +388,10 @@ def enrich_geoid(
         st_total = 0
         for row in case_file[state]:
             no_match = True
-            row_cnty_norm = str(row["County"]).lower()
+            row_cnty_norm = cu.norm_string(str(row["County"]))
             if state in TERRITORIES:
                 for county in TERRITORIES[state]:
-                    cnty_norm = str(county).lower()
+                    cnty_norm = cu.norm_string(str(county))
                     if row_cnty_norm == cnty_norm or (
                         row_cnty_norm in cnty_norm or cnty_norm in row_cnty_norm):
                         row["GEOID"] = TERRITORIES[state][county]["GEOID"]
@@ -389,13 +399,14 @@ def enrich_geoid(
                 st_total += 1
                 continue
             for county in enrichment[state]:
-                cnty_norm = str(county["NAME"]).lower()
+                cnty_norm = cu.norm_string(str(county["NAME"]))
                 if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
                     row["GEOID"] = str(county["GEOID"]).strip().zfill(5)
                     no_match = False
                     st_fixes += 1
                     break
             if no_match:
+                
                 # TODO: Recheck using Place data to get GEOID
                 # Connecticut and all Territories have significant issues.
                 row["GEOID"] = ""

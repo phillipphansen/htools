@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from datetime import datetime as dt
 import math
 from pathlib import Path
+import re
 import shutil
 import sys
 from typing import Any
@@ -141,6 +142,22 @@ def format(
     color = f"{colors.get(color, "")}"
     # Put it all together with the reset at the end.
     return f"{style}{color}{text}{reset_str}"
+
+def norm_string(text: str) -> str:
+    """
+    Normalizes string for fuzzy matching. 
+
+    :param text: The string to be normalized.
+    :type text: str
+    :return: The normalized string. 
+    :rtype: str
+    """
+    text = text.lower().strip()
+    text = re.sub(r"[.,'()-]", " ", text)
+    text = re.sub(r"\bst\b", "saint", text)
+    text = re.sub(r"\bste\b", "sainte", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 def grade_color(value: int) -> str:
     """
