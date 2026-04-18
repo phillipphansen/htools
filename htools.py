@@ -42,7 +42,7 @@ case_filenames = ["missing_namus.csv", "unid_namus.csv", "unclaim_namus.csv"]
 case_column = "State"
 # This is used to provide geographic data for small island areas not provided in
 # US Census data, they represent centroids of the island or groups of islands.
-TERRITORIES = {
+TERR_COUNTY = {
     "GU": [
         # Guam (single county equivalent)
         {
@@ -368,16 +368,26 @@ def enrich_places(
     ))
 
 def match_county(
-    target_county: any,
+    target: str,
     state: dict[str, dict[str, str]]
     ) -> tuple(str, bool, int):
     for county in state:
-        norm_candidate = cu.norm_string(county["NAME"])
-        if target_county == norm_candidate or target_county in norm_candidate:
-            return county["GEOID"], False, 1
+        candidate = cu.norm_string(county["NAME"])
+        if target == candidate or target in candidate:
+            # print(cu.format(f"{target} matched to {candidate}!", "green"))
+            return norm_geoid(county["GEOID"]), False, 1
     return "NA", True, 0
 
-
+def match_subdiv(
+    target: str,
+    state: dict[str, dict[str, str]]
+    ) -> tuple(str, bool, int):
+    for subdiv in state:
+        candidate = cu.norm_string(subdiv["NAME"])
+        if target == candidate or target in candidate:
+            # print(cu.format(f"Back-up matched {target} to {candidate}!", "yellow"))
+            return extract_subdiv_geoid(subdiv["GEOIDFQ"]), False, 1
+    return "NA", True, 0
 
 def enrich_geoid(
     case_file: GroupedDict,
@@ -405,29 +415,29 @@ def enrich_geoid(
         for row in case_file[state]:
             no_match = True
             target_norm = cu.norm_string(row["County"])
-            if target_norm == "":
-                # TODO: Place-checking backup for blank counties
-                pass
-            elif state in TERRITORIES:
-                if target_norm == "all":
-                    if state == "GU":
-                        row["GEOID"] = TERRITORIES[state][0]["GEOID"]
-                        no_match = False
-                        st_fixes += 1
-                    else:
-                        # TODO: Place-checking backup for 'all' counties
-                        pass
+            if state in TERR_COUNTY:
+                if state == "GU":
+                    row["GEOID"] = TERR_COUNTY[state][0]["GEOID"]
+                    no_match = False
+                    st_fixes += 1
                 else:
-                    row["GEOID"], no_match, add = match_county(target_norm, TERRITORIES[state])
+                    row["GEOID"], no_match, add = match_county(target_norm, TERR_COUNTY[state])
                     st_fixes += add
             else:
                 row["GEOID"], no_match, add = match_county(target_norm, enrichment[state])
                 st_fixes += add
+                
             if no_match:
-                print(cu.format(f"No match found for {target_norm} in {state}!", "red"))
-                # TODO: Recheck using Place data to get GEOID
-                # Connecticut and all Territories have significant issues.
-                row["GEOID"] = ""
+                if state in TERR_COUNTY:
+                    pass
+                else:
+                    target_norm_bkup = cu.norm_string(row["City"])
+                    row["GEOID"], no_match, add = match_subdiv(target_norm_bkup, backup_enrichment[state])
+                    st_fixes += add
+            if no_match:
+                if target_norm_bkup:
+                    text = f" or {target_norm_bkup}"
+                print(cu.format(f"No match found for {target_norm}{text} in {state}!", "red"))
             st_total += 1
         tot_fixes += st_fixes
         tot_items += st_total
@@ -689,21 +699,21 @@ def auto_mode() -> None:
     print(cu.format("Done!", 'cyan'))
     current_time = cu.dt.today().strftime("%Y%m%d%H%M")
     file_name = "missing_namus.csv"
-    # for file_name in case_filenames:
-    print(cu.format(f"Reading {file_name}...", 'cyan'), end="", flush=True)
-    case_file = read_file_auto(f"./base/{file_name}", key_col=case_column)
-    print(cu.format("Done!", 'cyan'))
-    print(cu.format(f"Sorting {file_name}...", 'cyan'), end="", flush=True)
-    case_file = sort_case(case_file)
-    print(cu.format("Done!", 'cyan'))
-    print(cu.format(f"Enriching {file_name}...", 'cyan'), flush=True)
-    enrich_geoid(case_file, county_file)
-    print(cu.format("Done!", 'cyan'))
-    name_norm = file_name.split('.')[0]
-    save_name = f"{name_norm}_{current_time}.csv"
-    print(cu.format(f"Saving {save_name}...", 'cyan'), end="", flush=True)
-    su.write_csv(case_file, save_name)
-    print(cu.format("Done!", 'cyan'))
+    for file_name in case_filenames:
+        print(cu.format(f"Reading {file_name}...", 'cyan'), end="", flush=True)
+        case_file = read_file_auto(f"./base/{file_name}", key_col=case_column)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Sorting {file_name}...", 'cyan'), end="", flush=True)
+        case_file = sort_case(case_file)
+        print(cu.format("Done!", 'cyan'))
+        print(cu.format(f"Enriching {file_name}...", 'cyan'), flush=True)
+        enrich_geoid(case_file, county_file, subdiv_file)
+        print(cu.format("Done!", 'cyan'))
+        name_norm = file_name.split('.')[0]
+        save_name = f"{name_norm}_{current_time}.csv"
+        print(cu.format(f"Saving {save_name}...", 'cyan'), end="", flush=True)
+        su.write_csv(case_file, save_name)
+        print(cu.format("Done!", 'cyan'))
 
 # =[ Main Fuction ]============================================================
 def main():

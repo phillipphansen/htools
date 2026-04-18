@@ -145,7 +145,8 @@ def format(
 
 def norm_string(text: any) -> str:
     """
-    Normalizes string for fuzzy matching. 
+    Normalizes string for fuzzy matching. Returns BLANK_STRING if the passed
+    text is empty.
 
     :param text: The string to be normalized.
     :type text: str
@@ -157,6 +158,8 @@ def norm_string(text: any) -> str:
     text = re.sub(r"\bst\b", "saint", text)
     text = re.sub(r"\bste\b", "sainte", text)
     text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        text = "BLANK_STRING"
     return text
 
 def grade_color(value: int) -> str:
