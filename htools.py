@@ -35,6 +35,7 @@ county_data_files: dict[str, dict[str, dict[str, list[dict[str, str]]]]] = {
 # These names are hardcoded for speed in auto-mode:
 place_filename = "2025_Gaz_place_national.txt"
 county_filename = "2025_Gaz_counties_national.txt"
+subdiv_filename = "2025_Gaz_cousubs_national.txt"
 geo_column = "GEOID"
 st_column = "USPS"
 case_filenames = ["missing_namus.csv", "unid_namus.csv", "unclaim_namus.csv"]
@@ -42,83 +43,83 @@ case_column = "State"
 # This is used to provide geographic data for small island areas not provided in
 # US Census data, they represent centroids of the island or groups of islands.
 TERRITORIES = {
-    "GU": {
+    "GU": [
         # Guam (single county equivalent)
-        "Guam": {
+        {
             "NAME": "Guam",
             "GEOID": "66010",
             "LL": (13.4054, 144.7517),  # approximate center point of Guam
         },
-    },
-    "AS": {
+    ],
+    "AS": [
         # American Samoa Districts / equivalents
-        "Eastern District": {
+        {
             "NAME": "Eastern District",
             "GEOID": "60010",
             "LL": (-14.2845, -170.6480),  # center of Eastern District
         },
-        "Manu'a District": {
+        {
             "NAME": "Manu'a District",
             "GEOID": "60020",
             "LL": (-14.2053, -169.5410),  # center of Manu'a District
         },
-        "Rose Island (Rose Atoll)": {
+        {
             "NAME": "Rose Island (Rose Atoll)",
             "GEOID": "60030",
             "LL": (-14.5833, -168.1500),  # approximate lat/lon (small atoll)
         },
-        "Swains Island": {
+        {
             "NAME": "Swains Island",
             "GEOID": "60040",
             "LL": (-11.0650, -171.0600),  # approximate geographic center
         },
-        "Western District": {
+        {
             "NAME": "Western District",
             "GEOID": "60050",
             "LL": (-14.3000, -170.7500),  # approximate middle of western districts
         },
-    },
-    "MP": {
+    ],
+    "MP": [
         # Northern Mariana Islands municipalities
-        "Northern Islands Municipality": {
+        {
             "NAME": "Northern Islands Municipality",
             "GEOID": "69085",
             "LL": (16.0000, 145.7500),  # rough central Pacific location (cluster of northern isles)
         },
-        "Rota Municipality": {
+        {
             "NAME": "Rota Municipality",
             "GEOID": "69100",
             "LL": (14.1522, 145.2018),  # Rota approximate center
         },
-        "Saipan Municipality": {
+        {
             "NAME": "Saipan Municipality",
             "GEOID": "69110",
             "LL": (15.2123, 145.7545),  # Saipan approximate center
         },
-        "Tinian Municipality": {
+        {
             "NAME": "Tinian Municipality",
             "GEOID": "69120",
             "LL": (14.9700, 145.6200),  # approximate center near Tinian island
         },
-    },
-    "VI": {
+    ],
+    "VI": [
         # U.S. Virgin Islands county equivalents
-        "St. Croix": {
+        {
             "NAME": "St. Croix",
             "GEOID": "78010",
             "LL": (17.7500, -64.7000),  # approximate center of St. Croix
         },
-        "St. John": {
+        {
             "NAME": "St. John",
             "GEOID": "78020",
             "LL": (18.3300, -64.7300),  # approximate center of St. John
         },
-        "St. Thomas": {
+        {
             "NAME": "St. Thomas",
             "GEOID": "78030",
             "LL": (18.3400, -64.9300),  # approximate center of St. Thomas
         },
-    },
+    ],
 }
 """
 demo_cols = ["Rural_Urban_Continuum_Code_2023", "Urban_Influence_2013",
@@ -366,6 +367,18 @@ def enrich_places(
         color
     ))
 
+def match_county(
+    target_county: any,
+    state: dict[str, dict[str, str]]
+    ) -> tuple(str, bool, int):
+    for county in state:
+        norm_candidate = cu.norm_string(county["NAME"])
+        if target_county == norm_candidate or target_county in norm_candidate:
+            return county["GEOID"], False, 1
+    return "NA", True, 0
+
+
+
 def enrich_geoid(
     case_file: GroupedDict,
     enrichment: GroupedDict,
@@ -391,28 +404,27 @@ def enrich_geoid(
         st_total = 0
         for row in case_file[state]:
             no_match = True
-            row_cnty_norm = cu.norm_string(str(row["County"]))
-            if row_cnty_norm == "":
-                row_cnty_norm = "BLANK"
+            target_norm = cu.norm_string(row["County"])
+            if target_norm == "":
+                # TODO: Place-checking backup for blank counties
+                pass
             elif state in TERRITORIES:
-                for county in TERRITORIES[state]:
-                    cnty_norm = cu.norm_string(str(county))
-                    if row_cnty_norm == cnty_norm or (
-                        row_cnty_norm in cnty_norm or cnty_norm in row_cnty_norm):
-                        row["GEOID"] = TERRITORIES[state][county]["GEOID"]
+                if target_norm == "all":
+                    if state == "GU":
+                        row["GEOID"] = TERRITORIES[state][0]["GEOID"]
                         no_match = False
                         st_fixes += 1
-                        break
+                    else:
+                        # TODO: Place-checking backup for 'all' counties
+                        pass
+                else:
+                    row["GEOID"], no_match, add = match_county(target_norm, TERRITORIES[state])
+                    st_fixes += add
             else:
-                for county in enrichment[state]:
-                    cnty_norm = cu.norm_string(str(county["NAME"]))
-                    if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
-                        row["GEOID"] = str(county["GEOID"]).strip().zfill(5)
-                        no_match = False
-                        st_fixes += 1
-                        break
+                row["GEOID"], no_match, add = match_county(target_norm, enrichment[state])
+                st_fixes += add
             if no_match:
-                print(cu.format(f"No match found for {row_cnty_norm} in {state}!", "red"))
+                print(cu.format(f"No match found for {target_norm} in {state}!", "red"))
                 # TODO: Recheck using Place data to get GEOID
                 # Connecticut and all Territories have significant issues.
                 row["GEOID"] = ""
@@ -424,6 +436,7 @@ def enrich_geoid(
         print(cu.format(
             f"{st_fixes}/{st_total} ({percent}%) enriched for {state}.", color
         ))
+        # input("press any key to continue")
     tot_per = round((tot_fixes / tot_items) * 100)
     color = cu.grade_color(tot_per)
     print(cu.format(
@@ -452,10 +465,10 @@ def enrich_county_ll(
                 st_total += 1
                 continue
             no_match = True
-            row_cnty_norm = str(row["County"]).lower()
+            target_norm = str(row["County"]).lower()
             for county in enrichment[state]:
                 cnty_norm = str(county["NAME"]).lower()
-                if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
+                if target_norm == cnty_norm or target_norm in cnty_norm:
                     row["INTPTLAT_County"] = county["INTPTLAT"]
                     row["INTPTLONG_County"] = county["INTPTLONG"]
                     no_match = False
@@ -501,10 +514,10 @@ def enrich_county_demo(
                 st_total += 1
                 continue
             no_match = True
-            row_cnty_norm = str(row["County"]).lower()
+            target_norm = str(row["County"]).lower()
             for county in enrichment[state]:
                 cnty_norm = str(county).lower()
-                if row_cnty_norm == cnty_norm or row_cnty_norm in cnty_norm:
+                if target_norm == cnty_norm or target_norm in cnty_norm:
                     for item in enrichment[state][county]:
                         if item['Attribute'] in demo_cols:
                             row[item['Attribute']] = item['Value']
@@ -667,9 +680,12 @@ def auto_mode_old() -> None:
 
 def auto_mode() -> None:
     # GEOID Auto Mode function.
-    case_files = {}
+    # case_files = {}
     print(cu.format(f"Reading {county_filename}...", 'cyan'), end="", flush=True)
     county_file = read_file_auto(f"./base/{county_filename}", delim='|', key_col=st_column)
+    print(cu.format("Done!", 'cyan'))
+    print(cu.format(f"Reading {subdiv_filename}...", 'cyan'), end="", flush=True)
+    subdiv_file = read_file_auto(f"./base/{subdiv_filename}", delim='|', key_col=st_column)
     print(cu.format("Done!", 'cyan'))
     current_time = cu.dt.today().strftime("%Y%m%d%H%M")
     file_name = "missing_namus.csv"

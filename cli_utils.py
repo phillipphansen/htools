@@ -143,7 +143,7 @@ def format(
     # Put it all together with the reset at the end.
     return f"{style}{color}{text}{reset_str}"
 
-def norm_string(text: str) -> str:
+def norm_string(text: any) -> str:
     """
     Normalizes string for fuzzy matching. 
 
@@ -152,8 +152,8 @@ def norm_string(text: str) -> str:
     :return: The normalized string. 
     :rtype: str
     """
-    text = text.lower().strip()
-    text = re.sub(r"[.,'()-]", " ", text)
+    text = str(text).lower().strip()
+    text = re.sub(r"[.,'()\-\u2013\u2014]", " ", text)
     text = re.sub(r"\bst\b", "saint", text)
     text = re.sub(r"\bste\b", "sainte", text)
     text = re.sub(r"\s+", " ", text).strip()
